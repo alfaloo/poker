@@ -137,11 +137,11 @@
       "id": "T12",
       "title": "Base UI components \u2014 Button and Toast",
       "description": "Create `components/ui/Button.tsx`: a reusable button with variants `primary` (gold/amber background, dark text), `secondary` (outlined), and `danger` (red). Accepts `disabled`, `onClick`, `children`, and `className` props. Disabled state uses reduced opacity and `cursor-not-allowed`. Create `components/ui/Toast.tsx`: a toast notification component that accepts `message: string` and `type: 'info' | 'success' | 'error'`. Renders as a floating overlay in the top-right corner with an auto-dismiss timer of 4 seconds. Use Framer Motion for slide-in/fade-out animation.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T1"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

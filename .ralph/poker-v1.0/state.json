@@ -106,5 +106,16 @@
     "summary": "Created lib/actions/session.ts with 'use server' directive. Implemented initGameSession() which authenticates user, validates tier config, checks balance meets minBalance, generates UUID, calls startGameSession from balance.ts, and returns { sessionId }. Also implemented getGameSessionConfig() which fetches the game_sessions row by session_id, verifies user_id matches the authenticated session, and returns config fields plus session_stack, or null if not found.",
     "files_modified": ["lib/actions/session.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 12,
+    "task_id": "T12",
+    "status": "completed",
+    "summary": "Created components/ui/Button.tsx with primary (amber), secondary (outlined), and danger (red) variants. Accepts disabled, onClick, children, className props. Disabled state uses opacity-50 and cursor-not-allowed. Created components/ui/Toast.tsx with message and type (info/success/error) props, floating top-right overlay, 4-second auto-dismiss timer, and Framer Motion slide-in/fade-out animation via AnimatePresence.",
+    "files_modified": [
+      "components/ui/Button.tsx",
+      "components/ui/Toast.tsx"
+    ],
+    "obstacles": []
   }
 ]
