@@ -149,12 +149,12 @@
       "id": "T13",
       "title": "Navbar component with session and balance display",
       "description": "Create `components/ui/Navbar.tsx`: a top navigation bar shown on all authenticated pages. Displays the site name/logo on the left. On the right: user's username, current balance (integer coins), a link to `/leaderboard`, and a logout button that calls `signOut()` from NextAuth. Balance is passed as a prop (fetched server-side by the parent layout/page). Dark background with gold accents consistent with poker theme.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T3",
         "T12"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

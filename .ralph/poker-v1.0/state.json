@@ -117,5 +117,15 @@
       "components/ui/Toast.tsx"
     ],
     "obstacles": []
+  },
+  {
+    "iteration": 13,
+    "task_id": "T13",
+    "status": "completed",
+    "summary": "Created components/ui/Navbar.tsx as a client component. Displays site logo/name on the left (links to /). On the right: username (amber), balance (integer coins, amber), Leaderboard link, and Logout button calling signOut from next-auth/react. Dark gray background with amber/gold accents consistent with poker theme.",
+    "files_modified": [
+      "components/ui/Navbar.tsx"
+    ],
+    "obstacles": []
   }
 ]
