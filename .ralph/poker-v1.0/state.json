@@ -42,5 +42,13 @@
       "app/api/auth/[...nextauth]/route.ts"
     ],
     "obstacles": []
+  },
+  {
+    "iteration": 4,
+    "task_id": "T4",
+    "status": "completed",
+    "summary": "Created middleware.ts at the project root using the auth export from lib/auth.ts. Protects all routes except /login, /register, and /api/auth/* prefix. Unauthenticated users are redirected to /login; logged-in users visiting /login or /register are redirected to /.",
+    "files_modified": ["middleware.ts"],
+    "obstacles": []
   }
 ]
