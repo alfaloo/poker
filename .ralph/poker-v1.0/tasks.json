@@ -6,7 +6,7 @@
       "id": "T1",
       "title": "Next.js project setup and dependencies",
       "description": "Initialise the Next.js 14 (App Router) project if it does not exist. Install all required packages: `poker-ts pokersolver @types/pokersolver drizzle-orm @neondatabase/serverless drizzle-kit next-auth@beta bcryptjs @types/bcryptjs framer-motion tailwindcss`. Configure Tailwind CSS. Create `.env.local` with placeholder keys: `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`. Create `drizzle.config.ts` pointing to `lib/db/schema.ts` with the Neon driver. Ensure `tsconfig.json` has path alias `@/*` for the project root.",
-      "status": "in_progress",
+      "status": "completed",
       "dependencies": [],
       "attempts": 1,
       "max_attempts": 3,
