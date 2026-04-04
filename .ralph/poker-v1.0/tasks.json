@@ -162,12 +162,12 @@
       "id": "T14",
       "title": "Login page",
       "description": "Create `app/(auth)/login/page.tsx`: a client component with a username + password form (no email field). On submit, calls NextAuth `signIn('credentials', { username, password, redirectTo: '/' })`. Display inline errors for wrong credentials. Include a link to `/register`. Style with dark background and gold accents matching the poker theme.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T3",
         "T12"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

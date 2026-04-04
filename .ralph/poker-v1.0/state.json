@@ -127,5 +127,15 @@
       "components/ui/Navbar.tsx"
     ],
     "obstacles": []
+  },
+  {
+    "iteration": 14,
+    "task_id": "T14",
+    "status": "completed",
+    "summary": "Created app/(auth)/login/page.tsx as a client component. Username + password form (no email). On submit calls signIn('credentials', { username, password, redirect: false }) then redirects to / on success or shows inline error on failure. Includes a link to /register. Styled with dark gray background, amber/gold accents, and amber-bordered inputs.",
+    "files_modified": [
+      "app/(auth)/login/page.tsx"
+    ],
+    "obstacles": []
   }
 ]
