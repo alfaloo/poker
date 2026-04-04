@@ -32,6 +32,7 @@ export interface GameState {
   currentBet: number;
   lastRaiseDelta: number;
   winners: WinnerInfo[] | null;
+  isFoldWin: boolean;
   userSeat: 0;
   isPending: boolean;
   actionError: string | null;
@@ -107,6 +108,7 @@ export function useGameEngine({
     currentBet: 0,
     lastRaiseDelta: bigBlind,
     winners: null,
+    isFoldWin: false,
     userSeat: 0,
     isPending: false,
     actionError: null,
@@ -152,6 +154,7 @@ export function useGameEngine({
         ];
 
         const pots = table.pots();
+        const isFoldWin = pots.every(pot => pot.eligiblePlayers.length <= 1);
         const winnerInfos: WinnerInfo[] = [];
 
         for (const pot of pots) {
@@ -199,6 +202,7 @@ export function useGameEngine({
           communityCards: communityCardsFull,
           holeCards: [...holeCardsRef.current],
           winners: winnerInfos,
+          isFoldWin,
           isPending: false,
           actionError: null,
         });
@@ -308,6 +312,7 @@ export function useGameEngine({
       communityCards: [],
       holeCards,
       winners: null,
+      isFoldWin: false,
       isPending: false,
       actionError: null,
     });
