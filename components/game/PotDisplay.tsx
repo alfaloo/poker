@@ -11,9 +11,12 @@ interface Pot {
 interface PotDisplayProps {
   pots: Pot[];
   winnerSeatIndex?: number | null; // when set, triggers chip-slide-to-winner animation
+  /** Seat index → { x, y } percentages relative to the PokerTable container.
+   *  Provided by PokerTable for future chip-slide-to-seat animations. */
+  seatCoordinates?: Record<number, { x: number; y: number }>;
 }
 
-export default function PotDisplay({ pots, winnerSeatIndex }: PotDisplayProps) {
+export default function PotDisplay({ pots, winnerSeatIndex, seatCoordinates: _seatCoordinates }: PotDisplayProps) {
   const prevPotsRef = useRef<Pot[]>([]);
   const [chipAnimation, setChipAnimation] = useState<'idle' | 'collecting' | 'awarding'>('idle');
   const [showChip, setShowChip] = useState(false);
