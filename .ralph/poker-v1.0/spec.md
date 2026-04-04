@@ -42,7 +42,7 @@ A browser-based, single-player Texas Hold'em poker game. Registered users compet
 | Framework | **Next.js 14 (App Router)** | SSR for auth pages, client-side game loop, server actions for DB writes |
 | Database | **NeonDB** (serverless Postgres) | Free-tier friendly, edge-compatible, works natively with Vercel |
 | ORM | **Drizzle ORM** | Lightweight, fully typed, first-class NeonDB/Postgres support |
-| Auth | **NextAuth.js v5** (Credentials provider) | Email+password login; session management via JWTs |
+| Auth | **NextAuth.js v5** (Credentials provider) | Username+password login; session management via JWTs |
 | Hosting | **Vercel** | Zero-config Next.js deployment |
 | Game Engine | **`poker-ts`** | Handles table state machine: seating, blinds, betting rounds, pots, action validation, showdown |
 | Hand Evaluation | **`pokersolver`** | Evaluates up to 7-card hands, returns hand name + rank, compares arrays of hands for split-pot detection |
@@ -69,7 +69,6 @@ Managed via Drizzle ORM migrations. Two tables for v1.
 CREATE TABLE users (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username         TEXT NOT NULL UNIQUE,
-  email            TEXT NOT NULL UNIQUE,
   password_hash    TEXT NOT NULL,
   balance          INTEGER NOT NULL DEFAULT 400,   -- in whole coin units
   date_last_accessed DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -82,17 +81,38 @@ CREATE TABLE users (
 | `balance` | Stored as an integer (whole coins). Never goes below 0 in DB. |
 | `date_last_accessed` | Updated to `CURRENT_DATE` on each authenticated page load. Used to gate the daily free-coin reward. |
 
+> **Note:** The `email` column has been removed from `users`. Registration and login use username + password only.
+
+### `game_sessions`
+
+```sql
+CREATE TABLE game_sessions (
+  session_id    UUID PRIMARY KEY,
+  user_id       UUID NOT NULL REFERENCES users(id),
+  config        JSONB NOT NULL,   -- { smallBlind, bigBlind, buyIn, numPlayers }
+  session_stack INTEGER NOT NULL, -- player's current chip value for this session
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+| Column | Notes |
+|---|---|
+| `session_id` | UUID generated at game start; also used as the URL segment (`/game/[sessionId]`). |
+| `user_id` | Foreign key to `users.id`. Only one active session per user is expected. |
+| `config` | JSONB storing the tier parameters chosen at lobby; validated server-side on game load to prevent manipulation. |
+| `session_stack` | Tracks the player's chip value within the session. Initialised to `buyIn` on game start, decremented on bets, incremented on wins. Transferred back to `users.balance` on cash-out or new game start. |
+
 ### `leaderboard` (view — no extra table needed)
 
 ```sql
 CREATE VIEW leaderboard AS
-  SELECT username, balance
-  FROM users
-  ORDER BY balance DESC
+  SELECT u.username,
+         u.balance + COALESCE(gs.session_stack, 0) AS total_balance
+  FROM users u
+  LEFT JOIN game_sessions gs ON gs.user_id = u.id
+  ORDER BY total_balance DESC
   LIMIT 10;
 ```
-
-No game session table is required for v1 — game state is held entirely client-side and only net balance changes are written to the DB.
 
 ---
 
@@ -184,10 +204,10 @@ After each hand, the button advances one seat clockwise. Blinds follow automatic
 
 ### 5.1 Authentication & Accounts
 
-- **Registration:** Users provide a username, email, and password. Password is hashed with `bcryptjs`. On successful registration, the account is created with `balance = 400` and `date_last_accessed = today`.
-- **Login:** Email + password via NextAuth Credentials provider. Session stored as a JWT cookie.
+- **Registration:** Users provide a username and password only (no email). Password is hashed with `bcryptjs`. On successful registration, the account is created with `balance = 400` and `date_last_accessed = today`.
+- **Login:** Username + password via NextAuth Credentials provider. Session stored as a JWT cookie.
 - **Logout:** Clears session cookie; redirects to login page.
-- **Error states:** Duplicate email/username, wrong password, missing fields — all surface inline form errors.
+- **Error states:** Duplicate username, wrong password, missing fields — all surface inline form errors.
 
 ### 5.2 Lobby & Game Setup
 
@@ -212,10 +232,10 @@ The authenticated home page (`/`) acts as the lobby.
 #### Starting a Game
 
 When the user clicks "Play":
-1. Deduct the buy-in from the user's DB balance immediately via a server action.
-2. Generate a `sessionId` (UUID) for the URL.
+1. Generate a `sessionId` (UUID) for the URL.
+2. Insert a row into the `game_sessions` table: `session_id = sessionId`, `user_id`, and config JSON `{ smallBlind, bigBlind, buyIn, numPlayers }`. The `session_stack` column is initialised to `buyIn` as part of the game-start flow described in §5.7.
 3. Redirect to `/game/[sessionId]`.
-4. Pass tier config and player count as URL search params or encoded in the session.
+4. On game load, retrieve and validate the stored config server-side from `game_sessions` to prevent client-side manipulation of blinds, buy-in, or player count.
 
 ### 5.3 Game Engine
 
@@ -263,7 +283,9 @@ After a hand resolves:
 
 #### Session Cleanup
 
-When leaving (voluntarily or forced), the user's remaining chips from the table are credited back to their DB balance via a server action.
+When the user cashes out or is eliminated, the `game_sessions.session_stack` is transferred back to `users.balance` via a server action (see §5.7). If the browser is force-closed or the tab is force-quit mid-hand, the remaining un-bet stack is preserved in `game_sessions.session_stack` and recovered automatically the next time the user visits the lobby (main page `/`) — not deferred until the next game start.
+
+**Page refresh on `/game/[sessionId]`:** If the user refreshes (or navigates directly to) the game page mid-hand, they are redirected to the lobby (`/`). Their un-bet stack is recovered on that lobby load as described above.
 
 ### 5.4 Bot Behaviour
 
@@ -312,18 +334,21 @@ The panel reads `table.legalActions()` to determine which controls to enable.
 
 **Default quick-bet buttons:**
 
-| Button | Value | Availability |
+| Button | Value Formula | Availability |
 |---|---|---|
-| 1/3 Pot | `Math.floor(pot / 3)` | Disabled (greyed out) if value ≤ current bet |
-| 1/2 Pot | `Math.floor(pot / 2)` | Disabled if value ≤ current bet |
-| Full Pot | `pot` | Disabled if value ≤ current bet |
-| All-In | User's remaining stack | Always enabled |
+| 1/4 Pot | `Math.round((pot / 4) / smallBlind) * smallBlind` | Blacked out if value > user's stack, or value < `chipRange.min`, or value ≤ current bet |
+| 1/3 Pot | `Math.round((pot / 3) / smallBlind) * smallBlind` | Blacked out if value > user's stack, or value < `chipRange.min`, or value ≤ current bet |
+| 1/2 Pot | `Math.round((pot / 2) / smallBlind) * smallBlind` | Blacked out if value > user's stack, or value < `chipRange.min`, or value ≤ current bet |
+| Full Pot | `Math.round(pot / smallBlind) * smallBlind` | Blacked out if value > user's stack, or value < `chipRange.min`, or value ≤ current bet |
+| 2× Pot | `Math.round((pot * 2) / smallBlind) * smallBlind` | Blacked out if value > user's stack, or value < `chipRange.min`, or value ≤ current bet |
+| All-In | User's remaining stack | Always enabled (capped at user's stack) |
 
-Any quick-bet value that falls below the legal minimum raise (from `legalActions().chipRange.min`) is also disabled.
+All values are rounded to the nearest small blind increment. A button is blacked out (not merely greyed) if the user cannot afford it (i.e. value exceeds their remaining stack) or if the current raise/bet size has already exceeded the button's computed value (i.e. value ≤ current bet) or if it falls below the legal minimum raise (`chipRange.min`).
 
 **Slider:**
 - Range: `chipRange.min` → `chipRange.max` (user's stack).
-- Step: equal to the small blind value (minimum granularity).
+- Step: equal to the small blind value (minimum lot size).
+- The slider does not extend below `chipRange.min` or above `chipRange.max`; regions outside these bounds are inaccessible.
 - Numeric input adjacent to the slider shows the current selected amount and can be typed into directly.
 
 **Confirm button:** "Bet [amount]" / "Raise to [amount]" — submits the action.
@@ -366,24 +391,27 @@ function buildAndShuffleDeck(): Card[] {
 
 ### 5.7 Balance Persistence & Anti-Evasion
 
-The user's DB balance reflects their "real" wealth at all times, even mid-hand.
+The user's total chip value is always preserved in the database, even if the browser is closed mid-hand.
 
 #### Flow
 
 | Event | DB Write |
 |---|---|
-| Game started | Deduct buy-in from `balance` |
-| User bets or raises | Deduct the **additional** chips just committed to the pot |
-| User calls | Deduct the call amount |
-| User folds | No further write (chips already deducted at prior bets) |
-| Hand ends (user won or tied) | Credit winnings to `balance` |
-| User leaves table | Credit remaining stack to `balance` |
+| Game started | Deduct `buyIn` from `users.balance`; set `game_sessions.session_stack = buyIn` |
+| User bets or raises | Deduct the **additional** chips committed from `game_sessions.session_stack` |
+| User calls | Deduct the call amount from `game_sessions.session_stack` |
+| User folds | No write (chips already deducted at prior bets) |
+| Hand ends (user won or tied) | Credit winnings to `game_sessions.session_stack` |
+| User cashes out after a hand | Add `session_stack` to `users.balance`; remove the session row |
+| User visits the lobby (`/`) | If a prior `game_sessions` row exists for this user, add its `session_stack` to `users.balance` and delete the row (recovery on every lobby load, not only on new game start) |
 
 All DB writes use Next.js **Server Actions** (`'use server'`). The client passes the delta amount; the server validates it is non-negative and updates the row atomically.
 
-**Result:** If the browser is force-closed mid-hand, the user's balance reflects whatever they had committed up to that point. Chips not yet placed into the pot (remaining stack) are irrecoverably lost. This is acceptable for v1; a reconnect/resume feature is out of scope.
+**Error handling:** If a server action call fails mid-hand (network error, DB timeout), the game action is blocked and an error is displayed to the user until the write succeeds. The game does not advance to the next state until the DB write completes.
 
-> **Security note:** Server actions should verify the session user ID against the action's target user ID to prevent cross-user balance manipulation.
+**Result:** If the browser is force-closed or the tab is force-quit mid-hand, the chips already committed to the pot are lost (as in a real game), but the player's remaining un-bet stack is preserved in `game_sessions.session_stack` and is automatically recovered the next time they visit the lobby (`/`).
+
+> **Security note:** Server actions should verify the session user ID against the authenticated session to prevent cross-user balance manipulation.
 
 ### 5.8 Hand Resolution & Showdown
 
@@ -452,9 +480,9 @@ This check runs in the root layout or as part of the session initialisation midd
 
 Route: `/leaderboard`
 
-- Fetches the top 10 users ordered by `balance DESC` directly from the DB (server component, no client fetch required).
-- Displays: rank, username, balance.
-- Current logged-in user's row is highlighted.
+- Fetches the top 10 users ordered by total wealth (`users.balance + COALESCE(game_sessions.session_stack, 0)`) DESC directly from the DB (server component, no client fetch required). This reflects a player's true total wealth even when they have chips in an active game session.
+- Displays: rank, username, total balance (balance + session stack).
+- Current logged-in user's row is highlighted if they appear in the top 10. If the logged-in user is ranked outside the top 10, no additional row is displayed for them.
 - Refreshes on every page visit (no caching).
 
 ---
@@ -637,11 +665,8 @@ All DB mutations are Next.js Server Actions (no REST API needed).
 // Called when user commits a bet or call
 export async function deductBalance(userId: string, amount: number): Promise<void>
 
-// Called when user wins a pot or leaves the table
+// Called when user wins a pot or a hand ends in the user's favour
 export async function creditBalance(userId: string, amount: number): Promise<void>
-
-// Called at game start; atomic deduct of buy-in
-export async function deductBuyIn(userId: string, buyIn: number): Promise<{ success: boolean; newBalance: number }>
 ```
 
 ### `lib/actions/user.ts`
@@ -652,7 +677,7 @@ export async function deductBuyIn(userId: string, buyIn: number): Promise<{ succ
 // Called from root layout on each authenticated load
 export async function applyDailyReward(userId: string): Promise<{ rewarded: boolean }>
 
-// Called on registration
+// Called on registration (username + password only, no email)
 export async function createUser(data: RegisterFormData): Promise<{ success: boolean; error?: string }>
 ```
 

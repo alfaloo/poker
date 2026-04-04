@@ -1,0 +1,9 @@
+{
+  "verbose": false,
+  "rounds": 1,
+  "limit": 20,
+  "base": "main",
+  "provider": "github",
+  "asynchronous": false,
+  "single": false
+}
