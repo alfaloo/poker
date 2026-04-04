@@ -98,5 +98,13 @@
     "summary": "Created lib/game/solver.ts exporting evaluateHands() and evaluatePot(). evaluateHands() calls Hand.solve() for each seat's card strings, Hand.winners() to determine winners, and returns winning seat indices plus a seat-to-hand-name map. evaluatePot() combines each eligible seat's 2 hole cards + community cards into 7-card strings and delegates to evaluateHands().",
     "files_modified": ["lib/game/solver.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 11,
+    "task_id": "T11",
+    "status": "completed",
+    "summary": "Created lib/actions/session.ts with 'use server' directive. Implemented initGameSession() which authenticates user, validates tier config, checks balance meets minBalance, generates UUID, calls startGameSession from balance.ts, and returns { sessionId }. Also implemented getGameSessionConfig() which fetches the game_sessions row by session_id, verifies user_id matches the authenticated session, and returns config fields plus session_stack, or null if not found.",
+    "files_modified": ["lib/actions/session.ts"],
+    "obstacles": []
   }
 ]

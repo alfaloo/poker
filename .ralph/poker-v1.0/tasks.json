@@ -124,12 +124,12 @@
       "id": "T11",
       "title": "Server-side game session init action",
       "description": "Create `lib/actions/session.ts` with `'use server'` directive. Implement `initGameSession(tierId: number, numPlayers: number): Promise<{ sessionId: string }>`. Steps: (1) Call `auth()` to get the current user's id and verify they are authenticated. (2) Look up the tier config from `TIERS[tierId]` (from `lib/game/constants.ts`). (3) Verify the user's `users.balance` meets `tier.minBalance`; throw an error if not. (4) Generate a UUID `sessionId`. (5) Call `startGameSession(sessionId, userId, tier.buyIn, { smallBlind, bigBlind, buyIn, numPlayers })` from `lib/actions/balance.ts` \u2014 this handles recovering any residual prior session as a safety net, deducting the buy-in from `users.balance`, and creating the `game_sessions` row. (6) Return `{ sessionId }`. The lobby page redirects to `/game/[sessionId]` after receiving the sessionId.\n\nAlso implement `getGameSessionConfig(sessionId: string): Promise<{ smallBlind: number; bigBlind: number; buyIn: number; numPlayers: number; sessionStack: number } | null>` \u2014 fetches the `game_sessions` row by `session_id`, verifies `user_id` matches the authenticated session, returns the config fields plus `session_stack`, or null if not found or if the session belongs to a different user.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T7",
         "T5"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },
