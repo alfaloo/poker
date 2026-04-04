@@ -100,11 +100,11 @@
       "id": "T9",
       "title": "Bot logic \u2014 simple check/call strategy",
       "description": "Create `lib/game/bots.ts`. Export `takeBotAction(table: PokerTable, seat: number): Promise<void>` where `PokerTable` is the poker-ts Table type. The function waits 2000 ms (simulated thinking), reads `table.legalActions()`, and calls `table.actionTaken('check')` if `'check'` is in the actions list, otherwise calls `table.actionTaken('call')`. Bots never fold and never raise. Export `BOT_THINK_DELAY_MS = 2000` as a named constant.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T1"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

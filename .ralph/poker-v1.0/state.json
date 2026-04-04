@@ -82,5 +82,13 @@
     "summary": "Created lib/game/deck.ts exporting the Card interface, buildAndShuffleDeck() using Fisher-Yates shuffle, and cardToSolverString() helper for pokersolver notation.",
     "files_modified": ["lib/game/deck.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 9,
+    "task_id": "T9",
+    "status": "completed",
+    "summary": "Created lib/game/bots.ts exporting BOT_THINK_DELAY_MS = 2000 and takeBotAction(table, seat). Uses InstanceType<typeof Table> for the PokerTable type. Waits 2000ms, then checks legalActions().actions for 'check'; if present calls actionTaken('check'), otherwise calls actionTaken('call').",
+    "files_modified": ["lib/game/bots.ts"],
+    "obstacles": []
   }
 ]
