@@ -28,11 +28,11 @@
       "id": "T3",
       "title": "NextAuth v5 credentials provider and auth route",
       "description": "Create `lib/auth.ts` configuring NextAuth v5 with a Credentials provider. The `authorize` function receives `{ username, password }` (no email \u2014 registration and login are username+password only), queries the DB for a user by username, and compares the password with `bcryptjs.compare`. On success return `{ id, username }`. Use JWT sessions. Export `{ handlers, auth, signIn, signOut }`. Create `app/api/auth/[...nextauth]/route.ts` that re-exports `handlers.GET` and `handlers.POST`. Configure `NEXTAUTH_SECRET` from env. The JWT should include the user's `id` and `username` so downstream server actions can verify the session.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T2"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

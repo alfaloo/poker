@@ -31,5 +31,16 @@
       "drizzle/meta/_journal.json"
     ],
     "obstacles": []
+  },
+  {
+    "iteration": 3,
+    "task_id": "T3",
+    "status": "completed",
+    "summary": "Created lib/auth.ts configuring NextAuth v5 with Credentials provider (username+password, no email), bcryptjs password comparison, JWT sessions with id and username in token, and exports { handlers, auth, signIn, signOut }. Created app/api/auth/[...nextauth]/route.ts re-exporting handlers.GET and handlers.POST.",
+    "files_modified": [
+      "lib/auth.ts",
+      "app/api/auth/[...nextauth]/route.ts"
+    ],
+    "obstacles": []
   }
 ]
