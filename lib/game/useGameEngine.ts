@@ -5,6 +5,7 @@ import { Table } from 'poker-ts';
 import { buildAndShuffleDeck, cardToSolverString, Card } from './deck';
 import { takeBotAction } from './bots';
 import { evaluatePot } from './solver';
+import { deductFromSession, creditToSession, cashOut as cashOutAction } from '@/lib/actions/balance';
 
 type PokerTable = InstanceType<typeof Table>;
 
@@ -32,6 +33,8 @@ export interface GameState {
   lastRaiseDelta: number;
   winners: WinnerInfo[] | null;
   userSeat: 0;
+  isPending: boolean;
+  actionError: string | null;
 }
 
 export interface UseGameEngineProps {
@@ -82,6 +85,8 @@ export function useGameEngine({
   bigBlind,
   buyIn,
   numPlayers,
+  sessionId,
+  userId,
   initialSessionStack,
 }: UseGameEngineProps) {
   const tableRef = useRef<PokerTable | null>(null);
@@ -103,6 +108,8 @@ export function useGameEngine({
     lastRaiseDelta: bigBlind,
     winners: null,
     userSeat: 0,
+    isPending: false,
+    actionError: null,
   });
 
   const syncTableState = useCallback((table: PokerTable, extraState: Partial<GameState> = {}) => {
@@ -164,11 +171,36 @@ export function useGameEngine({
           }
         }
 
+        // Credit user winnings to session
+        const userWinAmount = winnerInfos
+          .filter(w => w.seat === 0)
+          .reduce((sum, w) => sum + w.amount, 0);
+
+        if (userWinAmount > 0) {
+          setState(prev => ({ ...prev, isPending: true, actionError: null }));
+          try {
+            await creditToSession(sessionId, userId, userWinAmount);
+          } catch (e) {
+            if (!unmountedRef.current) {
+              setState(prev => ({
+                ...prev,
+                isPending: false,
+                actionError: e instanceof Error ? e.message : 'Failed to credit winnings. Please retry.',
+              }));
+            }
+            return;
+          }
+        }
+
+        if (unmountedRef.current) return;
+
         syncTableState(table, {
           phase: 'showdown',
           communityCards: communityCardsFull,
           holeCards: [...holeCardsRef.current],
           winners: winnerInfos,
+          isPending: false,
+          actionError: null,
         });
       } finally {
         processingRef.current = false;
@@ -247,7 +279,7 @@ export function useGameEngine({
     if (!unmountedRef.current) {
       processNextStep();
     }
-  }, [syncTableState]);
+  }, [sessionId, userId, syncTableState]);
 
   const startHand = useCallback(() => {
     const table = tableRef.current;
@@ -276,6 +308,8 @@ export function useGameEngine({
       communityCards: [],
       holeCards,
       winners: null,
+      isPending: false,
+      actionError: null,
     });
 
     setTimeout(() => processNextStep(), 0);
@@ -298,7 +332,7 @@ export function useGameEngine({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const performAction = useCallback((
+  const performAction = useCallback(async (
     action: 'fold' | 'check' | 'call' | 'bet' | 'raise',
     amount?: number
   ) => {
@@ -306,15 +340,53 @@ export function useGameEngine({
     if (!table) return;
     if (table.playerToAct() !== 0) return;
 
+    // Compute the amount to deduct from session for monetary actions
+    let deductAmount: number | null = null;
+
+    if (action === 'call') {
+      const seats = table.seats();
+      const maxBet = seats.reduce((max, s) => (s !== null ? Math.max(max, s.betSize) : max), 0);
+      const userCurrentBet = seats[0]?.betSize ?? 0;
+      const userStack = seats[0]?.stack ?? 0;
+      const callDiff = maxBet - userCurrentBet;
+      deductAmount = Math.min(callDiff, userStack);
+    } else if ((action === 'bet' || action === 'raise') && amount !== undefined) {
+      const seats = table.seats();
+      const userCurrentBet = seats[0]?.betSize ?? 0;
+      deductAmount = amount - userCurrentBet;
+    }
+
+    // Persist the monetary action before advancing the game state
+    if (deductAmount !== null && deductAmount > 0) {
+      setState(prev => ({ ...prev, isPending: true, actionError: null }));
+      try {
+        await deductFromSession(sessionId, userId, deductAmount);
+      } catch (e) {
+        setState(prev => ({
+          ...prev,
+          isPending: false,
+          actionError: e instanceof Error ? e.message : 'Failed to persist action. Please retry.',
+        }));
+        return; // Do not advance game state
+      }
+    }
+
+    if (unmountedRef.current) return;
+
     if (action === 'bet' || action === 'raise') {
       table.actionTaken(action, amount);
     } else {
       table.actionTaken(action);
     }
 
-    syncTableState(table, { phase: 'waiting', holeCards: [...holeCardsRef.current] });
+    syncTableState(table, {
+      phase: 'waiting',
+      holeCards: [...holeCardsRef.current],
+      isPending: false,
+      actionError: null,
+    });
     setTimeout(() => processNextStep(), 0);
-  }, [syncTableState, processNextStep]);
+  }, [sessionId, userId, syncTableState, processNextStep]);
 
   const nextHand = useCallback(() => {
     const table = tableRef.current;
@@ -349,6 +421,23 @@ export function useGameEngine({
     );
   }, []);
 
+  const leaveTable = useCallback(async (): Promise<{ finalBalance: number }> => {
+    setState(prev => ({ ...prev, isPending: true, actionError: null }));
+    try {
+      const result = await cashOutAction(sessionId, userId);
+      if (!unmountedRef.current) {
+        setState(prev => ({ ...prev, phase: 'session_over', isPending: false }));
+      }
+      return result;
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Failed to cash out. Please retry.';
+      if (!unmountedRef.current) {
+        setState(prev => ({ ...prev, isPending: false, actionError: errorMsg }));
+      }
+      throw e;
+    }
+  }, [sessionId, userId]);
+
   const getLegalActions = useCallback(() => {
     const table = tableRef.current;
     if (!table || !table.isHandInProgress()) return { actions: [] as const, chipRange: undefined };
@@ -364,6 +453,7 @@ export function useGameEngine({
     performAction,
     nextHand,
     acknowledgeShowdown,
+    leaveTable,
     getLegalActions,
     getButtonSeat,
   };
