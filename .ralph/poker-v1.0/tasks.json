@@ -175,7 +175,7 @@
       "id": "T15",
       "title": "Registration page",
       "description": "Create `app/(auth)/register/page.tsx`: a client component with username and password fields only (no email field). On submit, calls the `createUser` server action. On `{ success: false, error }`, display the error inline. On `{ success: true }`, call `signIn('credentials', { username, password, redirectTo: '/' })` to auto-login. Validate client-side that both fields are non-empty before submitting. Include a link to `/login`.",
-      "status": "in_progress",
+      "status": "completed",
       "dependencies": [
         "T6",
         "T12"

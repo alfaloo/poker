@@ -137,5 +137,13 @@
       "app/(auth)/login/page.tsx"
     ],
     "obstacles": []
+  },
+  {
+    "iteration": 15,
+    "task_id": "T15",
+    "status": "completed",
+    "summary": "Created app/(auth)/register/page.tsx as a client component with username and password fields. Client-side validates non-empty fields before submitting. Calls createUser server action; on success: false, displays inline error; on success: true, calls signIn('credentials', { username, password, redirectTo: '/' }) to auto-login. Includes link to /login. Styled with dark background and amber/gold accents consistent with login page and poker theme.",
+    "files_modified": ["app/(auth)/register/page.tsx"],
+    "obstacles": []
   }
 ]
