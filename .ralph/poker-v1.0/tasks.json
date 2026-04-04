@@ -52,11 +52,11 @@
       "id": "T5",
       "title": "Balance and session-stack server actions",
       "description": "Create `lib/actions/balance.ts` with `'use server'` directive. All functions must verify that `userId` matches the authenticated session user (call `auth()` from NextAuth) to prevent cross-user manipulation. Use Drizzle ORM for all DB operations.\n\nImplement the following exported async functions:\n\n(1) `recoverPriorSession(userId: string): Promise<{ recovered: boolean; amount: number }>` \u2014 checks if a `game_sessions` row exists for this user; if so, transfers its `session_stack` back to `users.balance` (`balance += session_stack`, delete the session row), returns `{ recovered: true, amount: session_stack }`; if no prior session, returns `{ recovered: false, amount: 0 }`. This is the primary recovery mechanism called on every lobby page load.\n\n(2) `startGameSession(sessionId: string, userId: string, buyIn: number, config: { smallBlind: number; bigBlind: number; buyIn: number; numPlayers: number }): Promise<void>` \u2014 as a safety net, checks if a prior `game_sessions` row exists for this user; if so, transfers its `session_stack` back to `users.balance` first. Then deducts buy-in from `users.balance` (`balance -= buyIn`, reject if new balance would go negative). Inserts a new `game_sessions` row with `session_id = sessionId`, `user_id`, `config` (JSONB), `session_stack = buyIn`.\n\n(3) `deductFromSession(sessionId: string, userId: string, amount: number): Promise<void>` \u2014 verifies `amount > 0`, verifies `session_stack - amount >= 0`, then decrements `game_sessions.session_stack` by `amount` WHERE `session_id = sessionId AND user_id = userId`.\n\n(4) `creditToSession(sessionId: string, userId: string, amount: number): Promise<void>` \u2014 verifies `amount > 0`, increments `game_sessions.session_stack` by `amount` WHERE `session_id = sessionId AND user_id = userId`.\n\n(5) `cashOut(sessionId: string, userId: string): Promise<{ finalBalance: number }>` \u2014 fetches `session_stack` from the session row, adds it to `users.balance`, deletes the session row, returns the new balance.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T3"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

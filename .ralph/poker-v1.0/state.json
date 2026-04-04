@@ -50,5 +50,13 @@
     "summary": "Created middleware.ts at the project root using the auth export from lib/auth.ts. Protects all routes except /login, /register, and /api/auth/* prefix. Unauthenticated users are redirected to /login; logged-in users visiting /login or /register are redirected to /.",
     "files_modified": ["middleware.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 5,
+    "task_id": "T5",
+    "status": "completed",
+    "summary": "Created lib/actions/balance.ts with 'use server' directive. Implemented recoverPriorSession, startGameSession, deductFromSession, creditToSession, and cashOut. All functions verify userId against authenticated session via auth() from NextAuth. Uses Drizzle ORM for all DB operations.",
+    "files_modified": ["lib/actions/balance.ts"],
+    "obstacles": []
   }
 ]
