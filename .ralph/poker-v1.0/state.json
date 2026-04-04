@@ -90,5 +90,13 @@
     "summary": "Created lib/game/bots.ts exporting BOT_THINK_DELAY_MS = 2000 and takeBotAction(table, seat). Uses InstanceType<typeof Table> for the PokerTable type. Waits 2000ms, then checks legalActions().actions for 'check'; if present calls actionTaken('check'), otherwise calls actionTaken('call').",
     "files_modified": ["lib/game/bots.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 10,
+    "task_id": "T10",
+    "status": "completed",
+    "summary": "Created lib/game/solver.ts exporting evaluateHands() and evaluatePot(). evaluateHands() calls Hand.solve() for each seat's card strings, Hand.winners() to determine winners, and returns winning seat indices plus a seat-to-hand-name map. evaluatePot() combines each eligible seat's 2 hole cards + community cards into 7-card strings and delegates to evaluateHands().",
+    "files_modified": ["lib/game/solver.ts"],
+    "obstacles": []
   }
 ]

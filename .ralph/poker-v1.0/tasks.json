@@ -112,11 +112,11 @@
       "id": "T10",
       "title": "pokersolver wrapper for hand evaluation",
       "description": "Create `lib/game/solver.ts`. Import `Hand` from `pokersolver`. Export `evaluateHands(hands: { seat: number; cards: string[] }[]): { winners: number[]; handNames: Record<number, string> }` \u2014 calls `Hand.solve(cards)` for each seat's card strings (pokersolver format: `'Ah'`, `'Kd'`, etc.), then `Hand.winners(solvedHands)` to determine the winner(s). Returns an array of winning seat indices and a map of seat \u2192 hand name (e.g. `'Full House'`). Export `evaluatePot(eligibleSeats: number[], holeCardsBySeat: Record<number, string[]>, communityCards: string[]): { winners: number[]; handNames: Record<number, string> }` that combines each seat's 2 hole cards + 5 community cards into 7 card strings before evaluating.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T8"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },
