@@ -76,11 +76,11 @@
       "id": "T7",
       "title": "Game constants \u2014 tier configuration",
       "description": "Create `lib/game/constants.ts` exporting a `TIERS` array with three entries: Beginner (smallBlind: 1, bigBlind: 2, buyIn: 200, minBalance: 200, label: 'Beginner'), Specialist (smallBlind: 5, bigBlind: 10, buyIn: 1000, minBalance: 1000, label: 'Specialist'), Master (smallBlind: 25, bigBlind: 50, buyIn: 5000, minBalance: 5000, label: 'Master'). Also export a `TierConfig` TypeScript interface: `{ label: string; smallBlind: number; bigBlind: number; buyIn: number; minBalance: number }`. Buy-in is always 100\u00d7 the big blind.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T1"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },

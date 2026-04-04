@@ -66,5 +66,13 @@
     "summary": "Created lib/actions/user.ts with 'use server' directive. Implemented createUser (validates non-empty username/password, hashes with bcryptjs, inserts with balance=400 and date_last_accessed=CURRENT_DATE, returns error on unique constraint violation) and applyDailyReward (fetches user date_last_accessed, compares with today, updates date and conditionally adds 200 balance if below 200).",
     "files_modified": ["lib/actions/user.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 7,
+    "task_id": "T7",
+    "status": "completed",
+    "summary": "Created lib/game/constants.ts exporting the TierConfig interface and TIERS array with three entries (Beginner, Specialist, Master) matching the spec's blind/buy-in/minBalance values.",
+    "files_modified": ["lib/game/constants.ts"],
+    "obstacles": []
   }
 ]
