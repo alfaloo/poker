@@ -74,5 +74,13 @@
     "summary": "Created lib/game/constants.ts exporting the TierConfig interface and TIERS array with three entries (Beginner, Specialist, Master) matching the spec's blind/buy-in/minBalance values.",
     "files_modified": ["lib/game/constants.ts"],
     "obstacles": []
+  },
+  {
+    "iteration": 8,
+    "task_id": "T8",
+    "status": "completed",
+    "summary": "Created lib/game/deck.ts exporting the Card interface, buildAndShuffleDeck() using Fisher-Yates shuffle, and cardToSolverString() helper for pokersolver notation.",
+    "files_modified": ["lib/game/deck.ts"],
+    "obstacles": []
   }
 ]

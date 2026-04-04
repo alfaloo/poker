@@ -88,11 +88,11 @@
       "id": "T8",
       "title": "Deck logic \u2014 build and shuffle",
       "description": "Create `lib/game/deck.ts`. Export a `Card` interface: `{ rank: string; suit: string }` where rank is one of `['2','3','4','5','6','7','8','9','T','J','Q','K','A']` and suit is one of `['clubs','diamonds','hearts','spades']`. Export `buildAndShuffleDeck(): Card[]` \u2014 builds a 52-card deck by crossing all ranks with all suits, then applies the Fisher-Yates shuffle in-place, and returns the shuffled deck. The deck is built fresh each time (called once per hand). Export a helper `cardToSolverString(card: Card): string` that converts a card to pokersolver notation (e.g. `{ rank: 'A', suit: 'hearts' }` \u2192 `'Ah'`).",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T1"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },
