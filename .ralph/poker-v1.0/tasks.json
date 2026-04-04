@@ -16,11 +16,11 @@
       "id": "T2",
       "title": "Database schema, Drizzle ORM, and NeonDB client",
       "description": "Create `lib/db/schema.ts` defining two tables and one view with Drizzle ORM.\n\n(1) `users` table: `id` (UUID PK, gen_random_uuid()), `username` (text, unique, not null), `password_hash` (text, not null), `balance` (integer, not null, default 400), `date_last_accessed` (date, not null, default CURRENT_DATE), `created_at` (timestamptz, not null, default now()). **No email column.**\n\n(2) `game_sessions` table: `session_id` (UUID PK), `user_id` (UUID, not null, FK \u2192 users.id), `config` (JSONB, not null \u2014 stores `{ smallBlind, bigBlind, buyIn, numPlayers }`), `session_stack` (integer, not null \u2014 player's current chip value for this session), `created_at` (timestamptz, not null, default now()).\n\n(3) `leaderboard` view: SELECT u.username, u.balance + COALESCE(gs.session_stack, 0) AS total_balance FROM users u LEFT JOIN game_sessions gs ON gs.user_id = u.id ORDER BY total_balance DESC LIMIT 10. This reflects each user's true total wealth including any active session stack.\n\nCreate `lib/db/index.ts` that exports a Drizzle client using `@neondatabase/serverless` connected via `process.env.DATABASE_URL`. Run `drizzle-kit generate` to create the initial migration, and `drizzle-kit migrate` or push to apply it.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T1"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },
