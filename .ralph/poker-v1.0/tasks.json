@@ -64,11 +64,11 @@
       "id": "T6",
       "title": "User server actions (register and daily reward)",
       "description": "Create `lib/actions/user.ts` with `'use server'` directive. Implement: (1) `createUser(data: { username: string; password: string }): Promise<{ success: boolean; error?: string }>` \u2014 no email field; validates that `username` and `password` are non-empty, hashes password with `bcryptjs.hash(password, 10)`, inserts into `users` table with `balance = 400` and `date_last_accessed = CURRENT_DATE`, returns `{ success: true }` or `{ success: false, error: 'Username already in use' }` on unique constraint violation. (2) `applyDailyReward(userId: string): Promise<{ rewarded: boolean }>` \u2014 compares `CURRENT_DATE > user.date_last_accessed`; if true, runs UPDATE to set `date_last_accessed = CURRENT_DATE` and, if `balance < 200`, also increments `balance += 200`; returns `{ rewarded: true }` if the date check passed (regardless of whether the balance was below 200), else `{ rewarded: false }`.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "T2"
       ],
-      "attempts": 0,
+      "attempts": 1,
       "max_attempts": 3,
       "blocked": false
     },
