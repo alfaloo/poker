@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { recoverPriorSession } from '@/lib/actions/balance';
-import { applyDailyReward } from '@/lib/actions/user';
+import { applyDailyRewardCached } from '@/lib/daily-reward-cached';
 import LobbyClient from './LobbyClient';
 
 interface PageProps {
@@ -37,8 +37,8 @@ export default async function HomePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const showErrorToast = params.error === 'invalid_session';
 
-  // (4) Apply daily reward
-  const { rewarded } = await applyDailyReward(userId);
+  // (4) Apply daily reward (uses cached call — layout already ran this for the same request)
+  const { rewarded } = await applyDailyRewardCached(userId);
 
   return (
     <LobbyClient
