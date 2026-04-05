@@ -18,7 +18,22 @@ interface PlayerSeatProps {
   isBot: boolean;
   cards: CardType[] | null;
   isEmpty: boolean;
+  isWinner?: boolean;
+  handName?: string;
+  isUserWinner?: boolean;
 }
+
+// 12 evenly-spaced angles (in radians) for sparkle particles
+const SPARKLE_PARAMS = Array.from({ length: 12 }, (_, i) => {
+  const rad = (i / 12) * 2 * Math.PI;
+  const dist = 44 + (i % 3) * 18;
+  return {
+    x: Math.cos(rad) * dist,
+    y: Math.sin(rad) * dist,
+    color: ['#fbbf24', '#f59e0b', '#fcd34d', '#ffffff', '#fde68a', '#fb923c'][i % 6],
+    delay: i * 0.1,
+  };
+});
 
 export default function PlayerSeat({
   username,
@@ -33,6 +48,9 @@ export default function PlayerSeat({
   isBot,
   cards,
   isEmpty,
+  isWinner,
+  handName,
+  isUserWinner,
 }: PlayerSeatProps) {
   if (isEmpty) {
     return (
@@ -47,9 +65,48 @@ export default function PlayerSeat({
   const avatarLetter = username.charAt(0).toUpperCase();
 
   return (
-    <div className={`flex flex-col items-center gap-1 ${isFolded ? 'opacity-50' : ''}`}>
-      {/* Avatar with optional pulsing ring for active bot */}
+    <div className={`relative flex flex-col items-center gap-1 ${isFolded ? 'opacity-50' : ''}`}>
+
+      {/* Sparkle particles — only for the human user when they win */}
+      {isUserWinner && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ overflow: 'visible', zIndex: 100 }}
+        >
+          {SPARKLE_PARAMS.map((p, i) => (
+            <motion.div
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                width: 7,
+                height: 7,
+                left: '50%',
+                top: '50%',
+                marginLeft: -3.5,
+                marginTop: -3.5,
+                backgroundColor: p.color,
+              }}
+              animate={{
+                x: [0, p.x],
+                y: [0, p.y],
+                opacity: [0, 1, 0],
+                scale: [0.5, 1.5, 0],
+              }}
+              transition={{
+                duration: 1.4,
+                repeat: Infinity,
+                repeatDelay: 0.8,
+                delay: p.delay,
+                ease: 'easeOut',
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Avatar */}
       <div className="relative">
+        {/* Pulsing ring for active bot */}
         {isActive && isBot && (
           <motion.div
             className="absolute inset-0 rounded-full border-2 border-amber-400"
@@ -59,24 +116,38 @@ export default function PlayerSeat({
           />
         )}
 
-        {/* Static active ring for non-bot active player */}
+        {/* Static active ring for user */}
         {isActive && !isBot && (
           <div className="absolute inset-0 rounded-full border-2 border-amber-400 scale-110" />
         )}
 
+        {/* Winner glow halo */}
+        {isWinner && (
+          <motion.div
+            className="absolute rounded-full"
+            style={{ inset: -5, borderRadius: '50%' }}
+            animate={{
+              boxShadow: [
+                '0 0 8px 4px rgba(251,191,36,0.4)',
+                '0 0 22px 10px rgba(251,191,36,0.85)',
+                '0 0 8px 4px rgba(251,191,36,0.4)',
+              ],
+            }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+
         <div
           className={`relative w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold select-none
-            ${isActive
-              ? 'bg-amber-500 text-gray-900'
-              : 'bg-gray-700 text-amber-300'
+            ${isWinner
+              ? 'bg-amber-400 text-gray-900'
+              : isActive
+                ? 'bg-amber-500 text-gray-900'
+                : 'bg-gray-700 text-amber-300'
             }
-            border-2 ${isFolded ? 'border-gray-600' : 'border-gray-500'}`}
+            border-2 ${isFolded ? 'border-gray-600' : isWinner ? 'border-amber-300' : 'border-gray-500'}`}
         >
-          {isBot ? (
-            <span title="Bot">🤖</span>
-          ) : (
-            <span>{avatarLetter}</span>
-          )}
+          {isBot ? <span title="Bot">🤖</span> : <span>{avatarLetter}</span>}
         </div>
 
         {/* Dealer button */}
@@ -87,8 +158,20 @@ export default function PlayerSeat({
         )}
       </div>
 
+      {/* Winner badge */}
+      {isWinner && (
+        <motion.span
+          className="text-[10px] bg-amber-500 text-gray-900 rounded px-1.5 py-0.5 font-bold leading-none"
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          WINNER
+        </motion.span>
+      )}
+
       {/* Username */}
-      <span className="text-xs text-gray-200 font-medium max-w-[80px] truncate">
+      <span className={`text-xs font-medium max-w-[80px] truncate ${isWinner ? 'text-amber-400' : 'text-gray-200'}`}>
         {username}
       </span>
 
@@ -127,35 +210,45 @@ export default function PlayerSeat({
         </div>
       )}
 
-      {/* Cards (shown for user/revealed players; null = face-down bots) */}
-      {cards !== null && cards.length > 0 && (
-        <div className="flex gap-1 mt-1">
-          {cards.map((card, i) => (
-            <Card
-              key={i}
-              rank={card.rank}
-              suit={card.suit}
-              faceDown={false}
-              faded={isFolded}
-              className="scale-75 origin-top"
-            />
-          ))}
-        </div>
+      {/* Cards — always render 2 slots for occupied seats; faceDown when cards === null */}
+      {!isEmpty && (
+        <motion.div
+          className={`flex gap-1 mt-1 p-1 rounded-lg ${isWinner ? 'ring-2 ring-amber-400' : ''}`}
+          animate={isWinner ? {
+            boxShadow: [
+              '0 0 4px 1px rgba(251,191,36,0.2)',
+              '0 0 14px 5px rgba(251,191,36,0.6)',
+              '0 0 4px 1px rgba(251,191,36,0.2)',
+            ],
+          } : { boxShadow: '0 0 0px 0px rgba(251,191,36,0)' }}
+          transition={isWinner ? { duration: 1.5, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
+        >
+          {[0, 1].map((cardIdx) => {
+            const card = cards?.[cardIdx];
+            return (
+              <Card
+                key={cardIdx}
+                rank={card?.rank ?? 'A'}
+                suit={card?.suit ?? 'spades'}
+                faceDown={!card}
+                faded={isFolded}
+                className="scale-75 origin-top"
+              />
+            );
+          })}
+        </motion.div>
       )}
 
-      {/* Face-down cards placeholder for bots */}
-      {cards === null && !isEmpty && (
-        <div className="flex gap-1 mt-1">
-          {[0, 1].map((i) => (
-            <Card
-              key={i}
-              rank="A"
-              suit="spades"
-              faceDown={true}
-              className="scale-75 origin-top"
-            />
-          ))}
-        </div>
+      {/* Hand name — only shown at showdown */}
+      {handName && (
+        <motion.span
+          className={`text-[10px] font-medium mt-0.5 ${isWinner ? 'text-amber-400' : 'text-gray-400'}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+        >
+          {handName}
+        </motion.span>
       )}
     </div>
   );

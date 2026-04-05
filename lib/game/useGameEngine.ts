@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Table } from 'poker-ts';
-import { buildAndShuffleDeck, cardToSolverString, Card } from './deck';
+import { cardToSolverString, Card } from './deck';
 import { takeBotAction } from './bots';
 import { evaluatePot } from './solver';
 import { deductFromSession, creditToSession, cashOut as cashOutAction } from '@/lib/actions/balance';
@@ -24,7 +24,6 @@ export interface WinnerInfo {
 export interface GameState {
   phase: 'waiting' | 'betting' | 'showdown' | 'hand_over' | 'session_over';
   round: 'preflop' | 'flop' | 'turn' | 'river';
-  deck: Card[];
   communityCards: Card[];
   holeCards: (Card[] | null)[];
   seats: SeatState[];
@@ -33,6 +32,8 @@ export interface GameState {
   lastRaiseDelta: number;
   winners: WinnerInfo[] | null;
   isFoldWin: boolean;
+  showdownSeats: number[] | null;
+  allHandNames: Record<number, string> | null;
   userSeat: 0;
   isPending: boolean;
   actionError: string | null;
@@ -61,26 +62,6 @@ function computePot(table: PokerTable): number {
   return table.pots().reduce((sum, pot) => sum + pot.size, 0);
 }
 
-function dealHoleCards(
-  deck: Card[],
-  buttonSeat: number,
-  numSeats: number,
-  occupiedSeats: number[]
-): (Card[] | null)[] {
-  const N = occupiedSeats.length;
-  const dealOrder = [...occupiedSeats].sort((a, b) => {
-    const relA = (a - buttonSeat - 1 + numSeats) % numSeats;
-    const relB = (b - buttonSeat - 1 + numSeats) % numSeats;
-    return relA - relB;
-  });
-
-  const holeCards: (Card[] | null)[] = Array(numSeats).fill(null);
-  dealOrder.forEach((seat, i) => {
-    holeCards[seat] = [deck[i], deck[N + i]];
-  });
-  return holeCards;
-}
-
 export function useGameEngine({
   smallBlind,
   bigBlind,
@@ -93,14 +74,11 @@ export function useGameEngine({
   const tableRef = useRef<PokerTable | null>(null);
   const processingRef = useRef(false);
   const unmountedRef = useRef(false);
-  const deckRef = useRef<Card[]>([]);
   const holeCardsRef = useRef<(Card[] | null)[]>(Array(numPlayers).fill(null));
-  const handOccupiedCountRef = useRef(0);
 
   const [state, setState] = useState<GameState>({
     phase: 'waiting',
     round: 'preflop',
-    deck: [],
     communityCards: [],
     holeCards: Array(numPlayers).fill(null),
     seats: Array(numPlayers).fill({ chips: 0, currentBet: 0, status: 'empty' as const }),
@@ -109,6 +87,8 @@ export function useGameEngine({
     lastRaiseDelta: bigBlind,
     winners: null,
     isFoldWin: false,
+    showdownSeats: null,
+    allHandNames: null,
     userSeat: 0,
     isPending: false,
     actionError: null,
@@ -116,9 +96,11 @@ export function useGameEngine({
 
   const syncTableState = useCallback((table: PokerTable, extraState: Partial<GameState> = {}) => {
     const seatsState = buildSeatsState(table);
-    const pot = computePot(table);
+    const pot = table.isHandInProgress() ? computePot(table) : 0;
     const currentBet = seatsState.reduce((max, s) => Math.max(max, s.currentBet), 0);
-    const legalActions = table.isHandInProgress() ? table.legalActions() : { actions: [], chipRange: undefined };
+    const legalActions = (table.isHandInProgress() && table.isBettingRoundInProgress())
+      ? table.legalActions()
+      : { actions: [], chipRange: undefined };
     const lastRaiseDelta = legalActions.chipRange?.min ?? bigBlind;
 
     setState(prev => ({
@@ -140,34 +122,50 @@ export function useGameEngine({
     if (table.areBettingRoundsCompleted()) {
       processingRef.current = true;
       try {
+        // Read pots, hole cards, and community cards BEFORE calling showdown() —
+        // showdown() sets handInProgress=false and these methods all assert
+        // handInProgress() internally, so they must be captured first.
+        const pots = table.pots();
+        const isFoldWin = pots.every(pot => pot.eligiblePlayers.length <= 1);
+        const tableHoleCards = table.holeCards() as (Card[] | null)[];
+        const communityCardsFull = table.communityCards() as Card[];
+        holeCardsRef.current = tableHoleCards;
+
         table.showdown();
         if (unmountedRef.current) return;
 
-        const communityStart = 2 * handOccupiedCountRef.current;
-        const fullDeck = deckRef.current;
-        const communityCardsFull: Card[] = [
-          fullDeck[communityStart],
-          fullDeck[communityStart + 1],
-          fullDeck[communityStart + 2],
-          fullDeck[communityStart + 3],
-          fullDeck[communityStart + 4],
-        ];
-
-        const pots = table.pots();
-        const isFoldWin = pots.every(pot => pot.eligiblePlayers.length <= 1);
         const winnerInfos: WinnerInfo[] = [];
+        const commStrings = communityCardsFull.map(cardToSolverString);
+
+        // Collect all non-folded seats across all pots (for showdown reveal)
+        const showdownSeatsSet: Record<number, true> = {};
+        for (const pot of pots) {
+          for (const seat of pot.eligiblePlayers) showdownSeatsSet[seat] = true;
+        }
+        const showdownSeats = Object.keys(showdownSeatsSet).map(Number);
+
+        // Evaluate hand names for every seat still in the hand
+        const allHoleCardsBySeat: Record<number, string[]> = {};
+        for (const seat of showdownSeats) {
+          const cards = tableHoleCards[seat];
+          if (cards) allHoleCardsBySeat[seat] = cards.map(cardToSolverString);
+        }
+        const { handNames: allHandNames } = isFoldWin
+          ? { handNames: {} as Record<number, string> }
+          : evaluatePot(showdownSeats, allHoleCardsBySeat, commStrings);
 
         for (const pot of pots) {
           const eligibleSeats = pot.eligiblePlayers;
           const holeCardsBySeat: Record<number, string[]> = {};
           for (const seat of eligibleSeats) {
-            const cards = holeCardsRef.current[seat];
+            const cards = tableHoleCards[seat];
             if (cards) {
               holeCardsBySeat[seat] = cards.map(cardToSolverString);
             }
           }
-          const commStrings = communityCardsFull.map(cardToSolverString);
-          const { winners, handNames } = evaluatePot(eligibleSeats, holeCardsBySeat, commStrings);
+          const { winners, handNames } = isFoldWin
+            ? { winners: eligibleSeats, handNames: {} as Record<number, string> }
+            : evaluatePot(eligibleSeats, holeCardsBySeat, commStrings);
           const share = Math.floor(pot.size / winners.length);
           for (const w of winners) {
             winnerInfos.push({ seat: w, amount: share, handName: handNames[w] });
@@ -203,6 +201,8 @@ export function useGameEngine({
           holeCards: [...holeCardsRef.current],
           winners: winnerInfos,
           isFoldWin,
+          showdownSeats,
+          allHandNames,
           isPending: false,
           actionError: null,
         });
@@ -219,33 +219,16 @@ export function useGameEngine({
         table.endBettingRound();
         if (unmountedRef.current) return;
 
-        const round = table.roundOfBetting();
-        const communityStart = 2 * handOccupiedCountRef.current;
-        const fullDeck = deckRef.current;
-
-        let newCommunityCards: Card[];
-        if (round === 'flop') {
-          newCommunityCards = [
-            fullDeck[communityStart],
-            fullDeck[communityStart + 1],
-            fullDeck[communityStart + 2],
-          ];
-        } else if (round === 'turn') {
-          newCommunityCards = [
-            fullDeck[communityStart],
-            fullDeck[communityStart + 1],
-            fullDeck[communityStart + 2],
-            fullDeck[communityStart + 3],
-          ];
-        } else {
-          newCommunityCards = [
-            fullDeck[communityStart],
-            fullDeck[communityStart + 1],
-            fullDeck[communityStart + 2],
-            fullDeck[communityStart + 3],
-            fullDeck[communityStart + 4],
-          ];
+        // If the river just finished, all betting rounds are complete —
+        // let the showdown branch at the top of this function handle it.
+        if (table.areBettingRoundsCompleted()) {
+          setTimeout(() => processNextStep(), 0);
+          return;
         }
+
+        const round = table.roundOfBetting();
+        // Use the actual community cards poker-ts dealt for this round
+        const newCommunityCards = table.communityCards() as Card[];
 
         syncTableState(table, {
           round,
@@ -289,38 +272,33 @@ export function useGameEngine({
     const table = tableRef.current;
     if (!table) return;
 
-    const deck = buildAndShuffleDeck();
-    deckRef.current = deck;
-
     table.startHand();
 
-    const buttonSeat = table.button();
-    const occupiedSeats = table.seats()
-      .map((s, i) => (s !== null ? i : -1))
-      .filter(i => i !== -1);
-
-    handOccupiedCountRef.current = occupiedSeats.length;
-
-    const holeCards = dealHoleCards(deck, buttonSeat, numPlayers, occupiedSeats);
+    // Read hole cards dealt by poker-ts's internal deck — this is the source of
+    // truth and must match what the library uses for hand evaluation.
+    const holeCards = table.holeCards() as (Card[] | null)[];
     holeCardsRef.current = holeCards;
 
     const round = table.roundOfBetting();
     syncTableState(table, {
       phase: 'waiting',
       round,
-      deck,
       communityCards: [],
       holeCards,
       winners: null,
       isFoldWin: false,
+      showdownSeats: null,
+      allHandNames: null,
       isPending: false,
       actionError: null,
     });
 
     setTimeout(() => processNextStep(), 0);
-  }, [numPlayers, syncTableState, processNextStep]);
+  }, [syncTableState, processNextStep]);
 
   useEffect(() => {
+    unmountedRef.current = false;
+    processingRef.current = false;
     const table = new Table({ smallBlind, bigBlind }, numPlayers);
     tableRef.current = table;
 
@@ -405,7 +383,8 @@ export function useGameEngine({
     });
 
     const userSeat = table.seats()[0];
-    const numActive = table.numActivePlayers();
+    // numActivePlayers() asserts handInProgress(), so count from seats directly.
+    const numActive = table.seats().filter(s => s !== null).length;
 
     if (!userSeat || userSeat.totalChips === 0) {
       setState(prev => ({ ...prev, phase: 'session_over' }));
@@ -450,7 +429,15 @@ export function useGameEngine({
   }, []);
 
   const getButtonSeat = useCallback((): number => {
-    return tableRef.current?.button() ?? -1;
+    const table = tableRef.current;
+    if (!table || !table.isHandInProgress()) return -1;
+    return table.button();
+  }, []);
+
+  const getActingSeat = useCallback((): number => {
+    const table = tableRef.current;
+    if (!table || !table.isHandInProgress() || !table.isBettingRoundInProgress()) return -1;
+    return table.playerToAct();
   }, []);
 
   return {
@@ -461,5 +448,6 @@ export function useGameEngine({
     leaveTable,
     getLegalActions,
     getButtonSeat,
+    getActingSeat,
   };
 }

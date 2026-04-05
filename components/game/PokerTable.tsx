@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import PlayerSeat from './PlayerSeat';
 import CommunityCards from './CommunityCards';
 import PotDisplay from './PotDisplay';
@@ -20,6 +21,9 @@ export interface SeatData {
   isBot: boolean;
   cards: CardType[] | null;
   isEmpty: boolean;
+  isWinner?: boolean;
+  handName?: string;
+  isUserWinner?: boolean;
 }
 
 interface PokerTableProps {
@@ -28,18 +32,18 @@ interface PokerTableProps {
   pots: { amount: number; label: string }[];
   winnerSeatIndex?: number | null;
   children?: React.ReactNode;
+  onTableClick?: () => void;
+  showCashoutButton?: boolean;
+  onCashout?: () => void;
+  showContinuePrompt?: boolean;
 }
 
 /**
  * Computes (left%, top%) for seat i around an ellipse centred at (50%, 50%).
  * Seat 0 is always at the bottom centre (angle = π/2 in screen coords).
  * Subsequent seats go clockwise.
- *
- * RX / RY are semi-radii expressed as percentages of the container's
- * width and height respectively.
  */
 function getSeatPosition(i: number, N: number, RX: number, RY: number) {
-  // angle π/2 → bottom; clockwise means subtracting per seat
   const angle = Math.PI / 2 - (i / N) * 2 * Math.PI;
   return {
     left: 50 + RX * Math.cos(angle),
@@ -53,19 +57,17 @@ export default function PokerTable({
   pots,
   winnerSeatIndex,
   children,
+  onTableClick,
+  showCashoutButton,
+  onCashout,
+  showContinuePrompt,
 }: PokerTableProps) {
   const N = seats.length || 1;
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Semi-radii for seat ring as % of container dimensions.
-  // Tuned so seats sit just outside the felt ellipse on all N values.
   const RX = 43;
   const RY = 35;
 
-  // Build a map of seat index → pixel coordinates for PotDisplay animations.
-  // Values are computed lazily from the rendered container size; the ref is
-  // updated on first render.  For now we pass percentages so PotDisplay can
-  // convert if needed.
   const seatCoordinates: Record<number, { x: number; y: number }> = {};
   seats.forEach((_, i) => {
     const { left, top } = getSeatPosition(i, N, RX, RY);
@@ -76,7 +78,8 @@ export default function PokerTable({
     <div
       ref={containerRef}
       className="relative w-full bg-gray-950 overflow-hidden"
-      style={{ minHeight: '100svh' }}
+      style={{ minHeight: '100svh', cursor: onTableClick ? 'pointer' : 'default' }}
+      onClick={onTableClick}
     >
       {/* ── Felt table ellipse ─────────────────────────────────────── */}
       <div
@@ -90,7 +93,6 @@ export default function PokerTable({
           borderRadius: '50%',
           background:
             'radial-gradient(ellipse at 50% 40%, #22883f 0%, #165c2c 55%, #0c3d1c 100%)',
-          // Gold outer ring: border + an extra inset shadow ring
           border: '5px solid #b8860b',
           boxShadow:
             '0 0 0 3px #7a5408, inset 0 0 70px rgba(0,0,0,0.35), 0 10px 40px rgba(0,0,0,0.75)',
@@ -137,8 +139,44 @@ export default function PokerTable({
 
       {/* ── Action panel (passed as children) ──────────────────────── */}
       {children && (
-        <div className="absolute bottom-0 left-0 right-0 z-30">{children}</div>
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {children}
+        </div>
       )}
+
+      {/* ── Showdown continue prompt (bottom centre) ────────────────── */}
+      <AnimatePresence>
+        {showContinuePrompt && (
+          <motion.p
+            className="absolute bottom-6 left-0 right-0 text-center text-gray-400 text-sm tracking-wide select-none pointer-events-none z-40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            Press any key or click anywhere to deal the next hand
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      {/* ── Cashout button (top-right, clear of all player seats) ───── */}
+      <AnimatePresence>
+        {showCashoutButton && onCashout && (
+          <motion.button
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.4 }}
+            onClick={(e) => { e.stopPropagation(); onCashout(); }}
+            className="absolute top-4 right-4 z-40 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 font-medium transition-colors text-sm"
+          >
+            Cash Out &amp; Leave
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,0 +1,18 @@
+diff --git a/node_modules/poker-ts/dist/util/array.js b/node_modules/poker-ts/dist/util/array.js
+index 1a40e82..2a44014 100644
+--- a/node_modules/poker-ts/dist/util/array.js
++++ b/node_modules/poker-ts/dist/util/array.js
+@@ -4,12 +4,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
+ };
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.findMax = exports.unique = exports.rotate = exports.nextOrWrap = exports.findIndexAdjacent = exports.shuffle = void 0;
+-var crypto_1 = require("crypto");
+ var assert_1 = __importDefault(require("assert"));
+ function shuffle(array) {
+     var _a;
+     for (var index = array.length - 1; index > 0; index--) {
+-        var newIndex = crypto_1.randomInt(index + 1);
++        var newIndex = Math.floor(Math.random() * (index + 1));
+         _a = [array[newIndex], array[index]], array[index] = _a[0], array[newIndex] = _a[1];
+     }
+ }

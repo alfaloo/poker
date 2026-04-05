@@ -1,10 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
 import { useGameEngine } from '@/lib/game/useGameEngine';
 import PokerTable, { SeatData } from '@/components/game/PokerTable';
-import HandResult from '@/components/game/HandResult';
 import ActionPanel from '@/components/game/ActionPanel';
 import Button from '@/components/ui/Button';
 import type { Card as CardType } from '@/lib/game/deck';
@@ -46,10 +46,10 @@ export default function GameClient({
     state,
     performAction,
     nextHand,
-    acknowledgeShowdown,
     leaveTable,
     getLegalActions,
     getButtonSeat,
+    getActingSeat,
   } = useGameEngine({
     smallBlind,
     bigBlind,
@@ -60,8 +60,39 @@ export default function GameClient({
     initialSessionStack,
   });
 
-  const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, isPending, actionError } =
+  const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, showdownSeats, allHandNames, isPending, actionError } =
     state;
+
+  // ── Prompt visibility (appears after card flip animations settle) ─────────
+  const [promptVisible, setPromptVisible] = useState(false);
+
+  useEffect(() => {
+    if (phase !== 'showdown' || isFoldWin) {
+      setPromptVisible(false);
+      return;
+    }
+    // 700ms: enough for the faceDown→faceUp flip animation (300ms) + buffer
+    const t = setTimeout(() => setPromptVisible(true), 700);
+    return () => clearTimeout(t);
+  }, [phase, isFoldWin]);
+
+  // ── Auto-advance fold wins after 1.5 s ───────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'showdown' || !isFoldWin) return;
+    const t = setTimeout(() => nextHand(), 1500);
+    return () => clearTimeout(t);
+  }, [phase, isFoldWin, nextHand]);
+
+  // ── Keydown → next hand ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'showdown' || isFoldWin || !promptVisible) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      nextHand();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [phase, isFoldWin, promptVisible, nextHand]);
 
   // ── Seat names ─────────────────────────────────────────────────────────────
   const seatName = (i: number) =>
@@ -101,6 +132,21 @@ export default function GameClient({
   // ── Pot display ────────────────────────────────────────────────────────────
   const potsDisplay = [{ amount: pot, label: 'Pot' }];
 
+  // ── Winner set for quick lookup ─────────────────────────────────────────────
+  const winnerSeats = new Set(winners?.map(w => w.seat) ?? []);
+  const userIsWinner = winnerSeats.has(0);
+
+  // ── Cards to show per seat ─────────────────────────────────────────────────
+  // At showdown, reveal cards for all seats still in the hand (showdownSeats).
+  // Folded seats and bots during play remain face-down (cards = null).
+  const cardsForSeat = (i: number): CardType[] | null => {
+    // User always sees their own hole cards
+    if (i === 0) return holeCards[i] ?? null;
+    // At showdown, reveal non-folded bot seats (those eligible in the pots)
+    if (phase === 'showdown' && showdownSeats?.includes(i)) return holeCards[i] ?? null;
+    return null;
+  };
+
   // ── Seat data for PokerTable ────────────────────────────────────────────────
   const seatsData: SeatData[] = seats.map((seat, i) => ({
     seat: i,
@@ -108,38 +154,26 @@ export default function GameClient({
     chips: seat.chips,
     currentBet: seat.currentBet,
     previousBet: 0,
-    isActive: phase === 'betting' && i === 0,
+    isActive: getActingSeat() === i,
     isDealer: i === buttonSeat,
     isSmallBlind: i === sbSeat,
     isBigBlind: i === bbSeat,
-    isFolded: seat.status === 'folded',
+    // During play, seat.status tracks folds. At showdown the hand is over and
+    // buildSeatsState always returns 'active', so derive fold status from
+    // showdownSeats (only non-folded players are eligible for pots).
+    isFolded: phase === 'showdown'
+      ? (seat.status !== 'empty' && showdownSeats !== null && !showdownSeats.includes(i))
+      : seat.status === 'folded',
     isBot: i !== 0,
-    cards: holeCards[i] ?? null,
+    cards: cardsForSeat(i),
     isEmpty: seat.status === 'empty',
+    isWinner: phase === 'showdown' ? winnerSeats.has(i) : undefined,
+    handName: phase === 'showdown' ? (allHandNames?.[i] ?? '') : undefined,
+    isUserWinner: phase === 'showdown' && userIsWinner && i === 0,
   }));
 
   // ── Winner seat for pot-slide animation ────────────────────────────────────
   const winnerSeatIndex = winners && winners.length === 1 ? winners[0].seat : null;
-
-  // ── HandResult data ────────────────────────────────────────────────────────
-  const handResultWinners =
-    winners?.map((w) => ({
-      seat: w.seat,
-      username: seatName(w.seat),
-      handName: w.handName ?? '',
-      amount: w.amount,
-    })) ?? [];
-
-  const allSeatsInHand = seats
-    .map((s, i) => ({ s, i }))
-    .filter(({ s, i }) => s.status !== 'empty' && holeCards[i] !== null)
-    .map(({ i }) => ({
-      seat: i,
-      username: seatName(i),
-      cards: holeCards[i] as CardType[],
-      handName:
-        winners?.find((w) => w.seat === i)?.handName ?? '',
-    }));
 
   // ── Leave table handler ────────────────────────────────────────────────────
   const handleLeaveTable = async () => {
@@ -190,6 +224,10 @@ export default function GameClient({
         communityCards={communityCardsPadded}
         pots={potsDisplay}
         winnerSeatIndex={winnerSeatIndex}
+        onTableClick={phase === 'showdown' && !isFoldWin && promptVisible ? nextHand : undefined}
+        showCashoutButton={phase === 'showdown'}
+        onCashout={handleLeaveTable}
+        showContinuePrompt={promptVisible && !isFoldWin}
       >
         {/* Action panel: visible when it is the user's turn */}
         <AnimatePresence>
@@ -212,39 +250,6 @@ export default function GameClient({
           )}
         </AnimatePresence>
       </PokerTable>
-
-      {/* HandResult overlay: visible during showdown */}
-      <AnimatePresence>
-        {phase === 'showdown' && winners !== null && (
-          <HandResult
-            winners={handResultWinners}
-            allSeatsInHand={allSeatsInHand}
-            isFoldWin={isFoldWin}
-            onContinue={acknowledgeShowdown}
-            onLeave={handleLeaveTable}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Between-hand controls: visible during hand_over */}
-      <AnimatePresence>
-        {phase === 'hand_over' && (
-          <div className="fixed inset-0 z-40 flex items-end justify-center pb-12 pointer-events-none">
-            <div className="flex gap-4 pointer-events-auto">
-              <Button variant="primary" onClick={nextHand} disabled={isPending}>
-                Next Hand
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={handleLeaveTable}
-                disabled={isPending}
-              >
-                Leave Table
-              </Button>
-            </div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

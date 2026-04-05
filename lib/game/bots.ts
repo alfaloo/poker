@@ -1,6 +1,6 @@
 import { Table } from 'poker-ts';
 
-export const BOT_THINK_DELAY_MS = 2000;
+export const BOT_THINK_DELAY_MS = 800;
 
 type PokerTable = InstanceType<typeof Table>;
 
