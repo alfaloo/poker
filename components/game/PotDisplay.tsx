@@ -17,7 +17,7 @@ interface PotDisplayProps {
   seatCoordinates?: Record<number, { x: number; y: number }>;
 }
 
-export default function PotDisplay({ pots, winnerSeatIndex, roundBet = 0, seatCoordinates: _seatCoordinates }: PotDisplayProps) {
+export default function PotDisplay({ pots, winnerSeatIndex, roundBet = 0 }: PotDisplayProps) {
   const prevPotsRef = useRef<Pot[]>([]);
   const [chipAnimation, setChipAnimation] = useState<'idle' | 'collecting' | 'awarding'>('idle');
   const [showChip, setShowChip] = useState(false);

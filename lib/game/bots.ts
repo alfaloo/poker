@@ -4,7 +4,7 @@ export const BOT_THINK_DELAY_MS = 800;
 
 type PokerTable = InstanceType<typeof Table>;
 
-export async function takeBotAction(table: PokerTable, seat: number): Promise<void> {
+export async function takeBotAction(table: PokerTable): Promise<void> {
   await new Promise<void>(resolve => setTimeout(resolve, BOT_THINK_DELAY_MS));
 
   const { actions } = table.legalActions();

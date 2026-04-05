@@ -258,7 +258,7 @@ export function useGameEngine({
     processingRef.current = true;
     syncTableState(table, { phase: 'waiting', holeCards: [...holeCardsRef.current] });
     try {
-      await takeBotAction(table, actingSeat);
+      await takeBotAction(table);
     } finally {
       processingRef.current = false;
     }
