@@ -10,13 +10,14 @@ interface Pot {
 
 interface PotDisplayProps {
   pots: Pot[];
-  winnerSeatIndex?: number | null; // when set, triggers chip-slide-to-winner animation
-  /** Seat index → { x, y } percentages relative to the PokerTable container.
-   *  Provided by PokerTable for future chip-slide-to-seat animations. */
+  winnerSeatIndex?: number | null;
+  /** Sum of all current-round bets (shown only when > 0). */
+  roundBet?: number;
+  /** Seat index → { x, y } percentages relative to the PokerTable container. */
   seatCoordinates?: Record<number, { x: number; y: number }>;
 }
 
-export default function PotDisplay({ pots, winnerSeatIndex, seatCoordinates: _seatCoordinates }: PotDisplayProps) {
+export default function PotDisplay({ pots, winnerSeatIndex, roundBet = 0, seatCoordinates: _seatCoordinates }: PotDisplayProps) {
   const prevPotsRef = useRef<Pot[]>([]);
   const [chipAnimation, setChipAnimation] = useState<'idle' | 'collecting' | 'awarding'>('idle');
   const [showChip, setShowChip] = useState(false);
@@ -39,7 +40,7 @@ export default function PotDisplay({ pots, winnerSeatIndex, seatCoordinates: _se
     prevPotsRef.current = pots;
   }, [totalPot]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When a winner is determined, animate chip sliding to winner (placeholder: moves down-center)
+  // When a winner is determined, animate chip sliding to winner
   useEffect(() => {
     if (winnerSeatIndex != null && totalPot > 0) {
       setShowChip(true);
@@ -91,6 +92,23 @@ export default function PotDisplay({ pots, winnerSeatIndex, seatCoordinates: _se
         <span className="text-yellow-500">🪙</span>
         <span>POT: {totalPot.toLocaleString()}</span>
       </motion.div>
+
+      {/* Current round bet total — only shown when betting has occurred */}
+      <AnimatePresence>
+        {roundBet > 0 && (
+          <motion.div
+            key="round-bet"
+            className="flex items-center gap-1.5 bg-black/50 text-green-300 text-xs px-2.5 py-0.5 rounded-full border border-green-600/40"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
+          >
+            <span className="text-green-500 text-[10px]">↑</span>
+            <span>BET: {roundBet.toLocaleString()}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Side pots (if any) */}
       {pots.length > 1 && (

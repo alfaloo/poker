@@ -30,7 +30,10 @@ interface PokerTableProps {
   seats: SeatData[];
   communityCards: (CardType | null)[];
   pots: { amount: number; label: string }[];
+  roundBet?: number;
   winnerSeatIndex?: number | null;
+  /** When true, seats are shifted closer to centre so user cards clear the action panel. */
+  actionPanelVisible?: boolean;
   children?: React.ReactNode;
   onTableClick?: () => void;
   showCashoutButton?: boolean;
@@ -55,7 +58,9 @@ export default function PokerTable({
   seats,
   communityCards,
   pots,
+  roundBet,
   winnerSeatIndex,
+  actionPanelVisible,
   children,
   onTableClick,
   showCashoutButton,
@@ -66,7 +71,8 @@ export default function PokerTable({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const RX = 43;
-  const RY = 35;
+  // Shrink vertical radius when action panel is open so seat 0 clears the bar
+  const RY = actionPanelVisible ? 28 : 35;
 
   const seatCoordinates: Record<number, { x: number; y: number }> = {};
   seats.forEach((_, i) => {
@@ -112,6 +118,7 @@ export default function PokerTable({
       >
         <PotDisplay
           pots={pots}
+          roundBet={roundBet}
           winnerSeatIndex={winnerSeatIndex}
           seatCoordinates={seatCoordinates}
         />

@@ -55,8 +55,8 @@ export default function PlayerSeat({
   if (isEmpty) {
     return (
       <div className="flex flex-col items-center gap-1 opacity-30">
-        <div className="w-12 h-12 rounded-full bg-gray-700 border-2 border-gray-600" />
-        <span className="text-xs text-gray-500">Empty</span>
+        <div className="w-10 h-10 rounded-full bg-gray-700 border-2 border-gray-600" />
+        <span className="text-[10px] text-gray-500">Empty</span>
       </div>
     );
   }
@@ -65,7 +65,7 @@ export default function PlayerSeat({
   const avatarLetter = username.charAt(0).toUpperCase();
 
   return (
-    <div className={`relative flex flex-col items-center gap-1 ${isFolded ? 'opacity-50' : ''}`}>
+    <div className={`relative flex flex-col items-center ${isFolded ? 'opacity-50' : ''}`}>
 
       {/* Sparkle particles — only for the human user when they win */}
       {isUserWinner && (
@@ -104,64 +104,10 @@ export default function PlayerSeat({
         </div>
       )}
 
-      {/* Avatar */}
-      <div className="relative">
-        {/* Pulsing ring for active bot */}
-        {isActive && isBot && (
-          <motion.div
-            className="absolute inset-0 rounded-full border-2 border-amber-400"
-            animate={{ scale: [1, 1.25, 1], opacity: [1, 0.4, 1] }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ borderRadius: '50%' }}
-          />
-        )}
-
-        {/* Static active ring for user */}
-        {isActive && !isBot && (
-          <div className="absolute inset-0 rounded-full border-2 border-amber-400 scale-110" />
-        )}
-
-        {/* Winner glow halo */}
-        {isWinner && (
-          <motion.div
-            className="absolute rounded-full"
-            style={{ inset: -5, borderRadius: '50%' }}
-            animate={{
-              boxShadow: [
-                '0 0 8px 4px rgba(251,191,36,0.4)',
-                '0 0 22px 10px rgba(251,191,36,0.85)',
-                '0 0 8px 4px rgba(251,191,36,0.4)',
-              ],
-            }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        )}
-
-        <div
-          className={`relative w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold select-none
-            ${isWinner
-              ? 'bg-amber-400 text-gray-900'
-              : isActive
-                ? 'bg-amber-500 text-gray-900'
-                : 'bg-gray-700 text-amber-300'
-            }
-            border-2 ${isFolded ? 'border-gray-600' : isWinner ? 'border-amber-300' : 'border-gray-500'}`}
-        >
-          {isBot ? <span title="Bot">🤖</span> : <span>{avatarLetter}</span>}
-        </div>
-
-        {/* Dealer button */}
-        {isDealer && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white text-gray-900 text-xs font-bold flex items-center justify-center border border-gray-400 z-10">
-            D
-          </div>
-        )}
-      </div>
-
-      {/* Winner badge */}
+      {/* Winner badge — above the cards */}
       {isWinner && (
         <motion.span
-          className="text-[10px] bg-amber-500 text-gray-900 rounded px-1.5 py-0.5 font-bold leading-none"
+          className="text-[10px] bg-amber-500 text-gray-900 rounded px-1.5 py-0.5 font-bold leading-none mb-1 z-30"
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -170,79 +116,155 @@ export default function PlayerSeat({
         </motion.span>
       )}
 
-      {/* Username */}
-      <span className={`text-xs font-medium max-w-[80px] truncate ${isWinner ? 'text-amber-400' : 'text-gray-200'}`}>
-        {username}
-      </span>
-
-      {/* Chip stack */}
-      <span className="text-xs text-amber-400 font-semibold">
-        {chips.toLocaleString()}
-      </span>
-
-      {/* Blind badges */}
-      {(isSmallBlind || isBigBlind) && (
-        <div className="flex gap-1">
-          {isSmallBlind && (
-            <span className="px-1 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold leading-none">
-              SB
-            </span>
-          )}
-          {isBigBlind && (
-            <span className="px-1 py-0.5 rounded bg-purple-600 text-white text-[10px] font-bold leading-none">
-              BB
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Bet badge */}
-      {currentBet > 0 && (
-        <div className="bg-gray-800 border border-amber-600 rounded px-2 py-0.5 text-center min-w-[48px]">
-          <div className="text-xs text-amber-300 font-bold leading-tight">
-            {currentBet}
-          </div>
-          {delta > 0 && (
-            <div className="text-[10px] text-green-400 leading-tight">
-              +{delta}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Cards — always render 2 slots for occupied seats; faceDown when cards === null */}
+      {/* Cards — clipped to show only top portion (rank + suit visible) */}
       {!isEmpty && (
-        <motion.div
-          className={`flex gap-1 mt-1 p-1 rounded-lg ${isWinner ? 'ring-2 ring-amber-400' : ''}`}
-          animate={isWinner ? {
-            boxShadow: [
-              '0 0 4px 1px rgba(251,191,36,0.2)',
-              '0 0 14px 5px rgba(251,191,36,0.6)',
-              '0 0 4px 1px rgba(251,191,36,0.2)',
-            ],
-          } : { boxShadow: '0 0 0px 0px rgba(251,191,36,0)' }}
-          transition={isWinner ? { duration: 1.5, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
-        >
+        <div className="flex gap-1 relative z-10">
           {[0, 1].map((cardIdx) => {
             const card = cards?.[cardIdx];
             return (
-              <Card
+              <div
                 key={cardIdx}
-                rank={card?.rank ?? 'A'}
-                suit={card?.suit ?? 'spades'}
-                faceDown={!card}
-                faded={isFolded}
-                className="scale-75 origin-top"
-              />
+                style={{ width: 60, height: 44, overflow: 'hidden' }}
+              >
+                <Card
+                  rank={card?.rank ?? 'A'}
+                  suit={card?.suit ?? 'spades'}
+                  faceDown={!card}
+                  faded={isFolded}
+                />
+              </div>
             );
           })}
-        </motion.div>
+        </div>
       )}
 
-      {/* Hand name — only shown at showdown */}
+      {/* Info banner — overlaps the bottom of the cards */}
+      <motion.div
+        className={`relative z-20 flex items-center gap-1.5 px-2 py-1.5 rounded-xl border -mt-2 ${
+          isWinner
+            ? 'bg-amber-950/95 border-amber-500'
+            : isActive
+              ? 'bg-gray-900/95 border-amber-500'
+              : 'bg-gray-900/95 border-gray-600'
+        }`}
+        style={{ minWidth: 124 }}
+        animate={
+          isWinner
+            ? {
+                boxShadow: [
+                  '0 0 4px 2px rgba(251,191,36,0.3)',
+                  '0 0 16px 6px rgba(251,191,36,0.75)',
+                  '0 0 4px 2px rgba(251,191,36,0.3)',
+                ],
+              }
+            : { boxShadow: '0 0 0px 0px rgba(251,191,36,0)' }
+        }
+        transition={
+          isWinner
+            ? { duration: 1.5, repeat: Infinity, ease: 'easeInOut' }
+            : { duration: 0.3 }
+        }
+      >
+        {/* Avatar with role decorators */}
+        <div className="relative flex-shrink-0">
+          {/* Pulsing ring for active bot */}
+          {isActive && isBot && (
+            <motion.div
+              className="absolute inset-0 rounded-full border-2 border-amber-400"
+              animate={{ scale: [1, 1.3, 1], opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+
+          {/* Static active ring for user */}
+          {isActive && !isBot && (
+            <div className="absolute inset-0 rounded-full border-2 border-amber-400 scale-110" />
+          )}
+
+          {/* Winner glow halo */}
+          {isWinner && (
+            <motion.div
+              className="absolute rounded-full"
+              style={{ inset: -4, borderRadius: '50%' }}
+              animate={{
+                boxShadow: [
+                  '0 0 6px 3px rgba(251,191,36,0.4)',
+                  '0 0 18px 8px rgba(251,191,36,0.85)',
+                  '0 0 6px 3px rgba(251,191,36,0.4)',
+                ],
+              }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+
+          <div
+            className={`relative w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold select-none
+              ${isWinner
+                ? 'bg-amber-400 text-gray-900'
+                : isActive
+                  ? 'bg-amber-500 text-gray-900'
+                  : 'bg-gray-700 text-amber-300'
+              }
+              border-2 ${isFolded ? 'border-gray-600' : isWinner ? 'border-amber-300' : 'border-gray-500'}`}
+          >
+            {isBot ? <span title="Bot" className="text-xs">🤖</span> : <span>{avatarLetter}</span>}
+          </div>
+
+          {/* Dealer button — top-right */}
+          {isDealer && (
+            <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-white text-gray-900 text-[9px] font-bold flex items-center justify-center border border-gray-400 z-10 leading-none">
+              D
+            </div>
+          )}
+
+          {/* Small blind — bottom-left */}
+          {isSmallBlind && (
+            <div className="absolute -bottom-1.5 -left-1.5 h-4 px-1 rounded bg-blue-600 text-white text-[8px] font-bold flex items-center justify-center border border-blue-400 z-10 leading-none">
+              SB
+            </div>
+          )}
+
+          {/* Big blind — bottom-right */}
+          {isBigBlind && (
+            <div className="absolute -bottom-1.5 -right-1.5 h-4 px-1 rounded bg-purple-600 text-white text-[8px] font-bold flex items-center justify-center border border-purple-400 z-10 leading-none">
+              BB
+            </div>
+          )}
+        </div>
+
+        {/* Username + chip stack */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <span
+            className={`text-[10px] font-semibold truncate leading-tight ${
+              isWinner ? 'text-amber-400' : 'text-gray-100'
+            }`}
+          >
+            {username}
+          </span>
+          <span className="text-[10px] text-amber-400 font-semibold leading-tight">
+            {chips.toLocaleString()}
+          </span>
+        </div>
+
+        {/* Current bet */}
+        {currentBet > 0 && (
+          <div className="flex flex-col items-end flex-shrink-0 ml-1">
+            <span className="text-[10px] text-amber-300 font-bold leading-tight">
+              {currentBet.toLocaleString()}
+            </span>
+            {delta > 0 && (
+              <span className="text-[9px] text-green-400 leading-tight">
+                +{delta}
+              </span>
+            )}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Hand name — shown at showdown below the banner */}
       {handName && (
         <motion.span
-          className={`text-[10px] font-medium mt-0.5 ${isWinner ? 'text-amber-400' : 'text-gray-400'}`}
+          className={`text-[9px] font-medium mt-0.5 ${isWinner ? 'text-amber-400' : 'text-gray-400'}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}

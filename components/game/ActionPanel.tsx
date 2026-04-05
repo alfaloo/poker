@@ -55,7 +55,7 @@ export default function ActionPanel({
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       className="fixed bottom-0 left-0 right-0 z-50 bg-gray-900/95 border-t border-yellow-600/40 shadow-2xl"
     >
-      <div className="max-w-2xl mx-auto px-4 py-3 flex flex-col gap-3">
+      <div className="max-w-2xl mx-auto px-4 py-2 flex flex-col gap-2">
         {/* Error message */}
         <AnimatePresence>
           {actionError && (

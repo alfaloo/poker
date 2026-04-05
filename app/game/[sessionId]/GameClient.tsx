@@ -131,6 +131,7 @@ export default function GameClient({
 
   // ── Pot display ────────────────────────────────────────────────────────────
   const potsDisplay = [{ amount: pot, label: 'Pot' }];
+  const roundBet = seats.reduce((sum, s) => sum + s.currentBet, 0);
 
   // ── Winner set for quick lookup ─────────────────────────────────────────────
   const winnerSeats = new Set(winners?.map(w => w.seat) ?? []);
@@ -223,7 +224,9 @@ export default function GameClient({
         seats={seatsData}
         communityCards={communityCardsPadded}
         pots={potsDisplay}
+        roundBet={roundBet}
         winnerSeatIndex={winnerSeatIndex}
+        actionPanelVisible={phase === 'betting'}
         onTableClick={phase === 'showdown' && !isFoldWin && promptVisible ? nextHand : undefined}
         showCashoutButton={phase === 'showdown'}
         onCashout={handleLeaveTable}
