@@ -50,11 +50,18 @@ export interface UseGameEngineProps {
 }
 
 function buildSeatsState(table: PokerTable): SeatState[] {
-  return table.seats().map(seat => {
+  const handPlayers = table.isHandInProgress() ? table.handPlayers() : null;
+  return table.seats().map((seat, i) => {
     if (seat === null) {
       return { chips: 0, currentBet: 0, status: 'empty' as const };
     }
-    return { chips: seat.stack, currentBet: seat.betSize, status: 'active' as const };
+    // A player has folded if they are seated but absent from handPlayers
+    const isFolded = handPlayers !== null && handPlayers[i] === null;
+    return {
+      chips: seat.stack,
+      currentBet: seat.betSize,
+      status: isFolded ? 'folded' as const : 'active' as const,
+    };
   });
 }
 
@@ -131,6 +138,11 @@ export function useGameEngine({
         const communityCardsFull = table.communityCards() as Card[];
         holeCardsRef.current = tableHoleCards;
 
+        // Snapshot seats BEFORE showdown() — poker-ts internally calls
+        // standUpBustedPlayers() which nulls out 0-chip seats, making
+        // all-in players who lost vanish from buildSeatsState reads.
+        const seatsSnapshot = buildSeatsState(table);
+
         table.showdown();
         if (unmountedRef.current) return;
 
@@ -195,8 +207,22 @@ export function useGameEngine({
 
         if (unmountedRef.current) return;
 
+        // Build a per-seat win-amount map so we can show updated chips
+        const winAmountBySeat: Record<number, number> = {};
+        for (const w of winnerInfos) {
+          winAmountBySeat[w.seat] = (winAmountBySeat[w.seat] ?? 0) + w.amount;
+        }
+
+        // Apply winnings to the pre-showdown snapshot so every seat (including
+        // all-in players with 0 chips) remains visible with correct chip counts.
+        const seatsForShowdown = seatsSnapshot.map((seat, i) => {
+          const won = winAmountBySeat[i] ?? 0;
+          return won > 0 ? { ...seat, chips: seat.chips + won } : seat;
+        });
+
         syncTableState(table, {
           phase: 'showdown',
+          seats: seatsForShowdown,
           communityCards: communityCardsFull,
           holeCards: [...holeCardsRef.current],
           winners: winnerInfos,
@@ -254,10 +280,12 @@ export function useGameEngine({
       return;
     }
 
-    // Bot's turn
+    // Bot's turn — show the bot as active (pulsing) for 1.2 s before it acts
     processingRef.current = true;
     syncTableState(table, { phase: 'waiting', holeCards: [...holeCardsRef.current] });
     try {
+      await new Promise<void>(resolve => setTimeout(resolve, 1200));
+      if (unmountedRef.current) return;
       await takeBotAction(table);
     } finally {
       processingRef.current = false;
