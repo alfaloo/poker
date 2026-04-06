@@ -23,17 +23,21 @@ export async function initGameSession(
     throw new Error(`Invalid tier ID: ${tierId}`);
   }
 
-  const [user] = await db
-    .select({ balance: users.balance })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  const [[user], [priorSession]] = await Promise.all([
+    db.select({ balance: users.balance }).from(users).where(eq(users.id, userId)).limit(1),
+    db.select({ sessionStack: gameSessions.sessionStack }).from(gameSessions).where(eq(gameSessions.userId, userId)).limit(1),
+  ]);
 
   if (!user) {
     throw new Error('User not found');
   }
 
-  if (user.balance < tier.minBalance) {
+  // Any uncredited session stack will be recovered atomically inside
+  // startGameSession, so include it in the effective balance check here so
+  // the user is never incorrectly blocked by a temporarily low main balance.
+  const effectiveBalance = user.balance + (priorSession?.sessionStack ?? 0);
+
+  if (effectiveBalance < tier.minBalance) {
     throw new Error(`Insufficient balance. Need ${tier.minBalance} to enter ${tier.label} tier.`);
   }
 

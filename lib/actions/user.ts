@@ -65,12 +65,12 @@ export async function applyDailyReward(
         balance: user.balance + 200,
       })
       .where(eq(users.id, userId));
+    return { rewarded: true };
   } else {
     await db
       .update(users)
       .set({ dateLastAccessed: sql`CURRENT_DATE` })
       .where(eq(users.id, userId));
+    return { rewarded: false };
   }
-
-  return { rewarded: true };
 }

@@ -32,8 +32,6 @@ interface PokerTableProps {
   pots: { amount: number; label: string }[];
   roundBet?: number;
   winnerSeatIndex?: number | null;
-  /** When true, seats are shifted closer to centre so user cards clear the action panel. */
-  actionPanelVisible?: boolean;
   children?: React.ReactNode;
   onTableClick?: () => void;
   showCashoutButton?: boolean;
@@ -42,15 +40,33 @@ interface PokerTableProps {
 }
 
 /**
- * Computes (left%, top%) for seat i around an ellipse centred at (50%, 50%).
- * Seat 0 is always at the bottom centre (angle = π/2 in screen coords).
- * Subsequent seats go clockwise.
+ * Action-bar height in px (border-t 1 + py-2 padding 16 + button height 40).
+ * Used to centre the table in the space above the bar with CSS calc().
+ */
+const ACTION_BAR_H = 57;
+
+/**
+ * Returns CSS values for positioning seat i on the orbit ellipse.
+ *
+ * Table felt:  left 10 %, top calc(11% − 28.5px), width 80 %, height 78 %
+ *   → centre (50 %, calc(50% − 28.5px)), semi-axes rx=40, ry=39.
+ *
+ * The centre Y is calc(50% − ACTION_BAR_H/2 px) so that the table is
+ * perfectly centred in the viewport space above the fixed action bar,
+ * regardless of screen height.
+ *
+ * Orbit radii give a uniform 7 % inset on every side: rx 40−7=33, ry 39−7=32.
+ * Seat 0 is always at the bottom centre; subsequent seats go clockwise.
  */
 function getSeatPosition(i: number, N: number, RX: number, RY: number) {
   const angle = Math.PI / 2 - (i / N) * 2 * Math.PI;
+  const leftPct  = 50 + RX * Math.cos(angle);
+  const yOffPct  = RY * Math.sin(angle);
+  const halfBar  = ACTION_BAR_H / 2; // 28.5 px
   return {
-    left: 50 + RX * Math.cos(angle),
-    top: 50 + RY * Math.sin(angle),
+    left: `${leftPct.toFixed(3)}%`,
+    // Centre the orbit at calc(50% − 28.5px); each seat offsets from there.
+    top:  `calc(50% - ${halfBar}px + ${yOffPct.toFixed(3)}%)`,
   };
 }
 
@@ -60,7 +76,6 @@ export default function PokerTable({
   pots,
   roundBet,
   winnerSeatIndex,
-  actionPanelVisible,
   children,
   onTableClick,
   showCashoutButton,
@@ -70,14 +85,20 @@ export default function PokerTable({
   const N = seats.length || 1;
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const RX = 43;
-  // Shrink vertical radius when action panel is open so seat 0 clears the bar
-  const RY = actionPanelVisible ? 28 : 35;
+  // Table felt ellipse: left 10 %, top 4 %, width 80 %, height 78 %
+  //   → centre (50 %, 43 %), semi-axes rx=40, ry=39.
+  // Seat orbit radii give a uniform 7 % inset on every side: 40-7=33, 39-7=32.
+  const RX = 33;
+  const RY = 32;
 
+  // Approximate numeric coordinates for PotDisplay (it receives but doesn't render them).
   const seatCoordinates: Record<number, { x: number; y: number }> = {};
   seats.forEach((_, i) => {
-    const { left, top } = getSeatPosition(i, N, RX, RY);
-    seatCoordinates[i] = { x: left, y: top };
+    const angle = Math.PI / 2 - (i / N) * 2 * Math.PI;
+    seatCoordinates[i] = {
+      x: 50 + RX * Math.cos(angle),
+      y: 50 + RY * Math.sin(angle), // approximate; exact value uses calc()
+    };
   });
 
   return (
@@ -92,10 +113,10 @@ export default function PokerTable({
         aria-hidden="true"
         style={{
           position: 'absolute',
-          left: '13%',
-          top: '8%',
-          width: '74%',
-          height: '68%',
+          left: '10%',
+          top: `calc(11% - ${ACTION_BAR_H / 2}px)`,
+          width: '80%',
+          height: '78%',
           borderRadius: '50%',
           background:
             'radial-gradient(ellipse at 50% 40%, #22883f 0%, #165c2c 55%, #0c3d1c 100%)',
@@ -111,7 +132,7 @@ export default function PokerTable({
         className="absolute flex flex-col items-center gap-3"
         style={{
           left: '50%',
-          top: '42%',
+          top: `calc(50% - ${ACTION_BAR_H / 2}px)`,
           transform: 'translate(-50%, -50%)',
           zIndex: 10,
         }}
@@ -133,8 +154,8 @@ export default function PokerTable({
             key={seatData.seat}
             className="absolute"
             style={{
-              left: `${left}%`,
-              top: `${top}%`,
+              left,
+              top,
               transform: 'translate(-50%, -50%)',
               zIndex: 20,
             }}

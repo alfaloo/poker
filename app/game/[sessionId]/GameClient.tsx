@@ -177,11 +177,18 @@ export default function GameClient({
   const winnerSeatIndex = winners && winners.length === 1 ? winners[0].seat : null;
 
   // ── Leave table handler ────────────────────────────────────────────────────
+  const [isLeaving, setIsLeaving] = useState(false);
+
   const handleLeaveTable = async () => {
+    setIsLeaving(true);
     try {
       await leaveTable();
+      // refresh() busts the Next.js router cache so the lobby re-fetches the
+      // updated balance from the DB instead of serving a stale cached page.
+      router.refresh();
       router.push('/');
     } catch {
+      setIsLeaving(false);
       // actionError is set by the engine; UI shows it
     }
   };
@@ -193,7 +200,7 @@ export default function GameClient({
   };
 
   // ── Session over screen ────────────────────────────────────────────────────
-  if (phase === 'session_over') {
+  if (phase === 'session_over' && !isLeaving) {
     const userWon = (seats[0]?.chips ?? 0) > 0;
     return (
       <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-8">
@@ -211,7 +218,7 @@ export default function GameClient({
               : 'Better luck next time.'}
           </p>
         </div>
-        <Button variant="primary" onClick={() => router.push('/')}>
+        <Button variant="primary" onClick={handleLeaveTable}>
           Return to Lobby
         </Button>
       </div>
@@ -226,7 +233,6 @@ export default function GameClient({
         pots={potsDisplay}
         roundBet={roundBet}
         winnerSeatIndex={winnerSeatIndex}
-        actionPanelVisible={phase === 'betting'}
         onTableClick={phase === 'showdown' && !isFoldWin && promptVisible ? nextHand : undefined}
         showCashoutButton={phase === 'showdown'}
         onCashout={handleLeaveTable}

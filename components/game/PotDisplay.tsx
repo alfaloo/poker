@@ -53,7 +53,7 @@ export default function PotDisplay({ pots, winnerSeatIndex, roundBet = 0 }: PotD
     }
   }, [winnerSeatIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (pots.length === 0 || totalPot === 0) return null;
+  if (pots.length === 0 || (totalPot === 0 && roundBet === 0)) return null;
 
   return (
     <div className="relative flex flex-col items-center gap-1 select-none">
@@ -81,34 +81,35 @@ export default function PotDisplay({ pots, winnerSeatIndex, roundBet = 0 }: PotD
         )}
       </AnimatePresence>
 
-      {/* Main pot */}
-      <motion.div
-        key={totalPot}
-        className="flex items-center gap-2 bg-black/60 text-yellow-300 font-bold text-sm px-3 py-1 rounded-full border border-yellow-500/50 shadow"
-        initial={{ scale: 1 }}
-        animate={{ scale: [1, 1.08, 1] }}
-        transition={{ duration: 0.3 }}
-      >
-        <span className="text-yellow-500">🪙</span>
-        <span>POT: {totalPot.toLocaleString()}</span>
-      </motion.div>
+      {/* Main pot — with round-bet decorator badge */}
+      <div className="relative inline-flex">
+        <motion.div
+          key={totalPot}
+          className="flex items-center gap-2 bg-black/60 text-yellow-300 font-bold text-sm px-3 py-1 rounded-full border border-yellow-500/50 shadow"
+          initial={{ scale: 1 }}
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 0.3 }}
+        >
+          <span className="text-yellow-500">🪙</span>
+          <span>POT: {totalPot.toLocaleString()}</span>
+        </motion.div>
 
-      {/* Current round bet total — only shown when betting has occurred */}
-      <AnimatePresence>
-        {roundBet > 0 && (
-          <motion.div
-            key="round-bet"
-            className="flex items-center gap-1.5 bg-black/50 text-green-300 text-xs px-2.5 py-0.5 rounded-full border border-green-600/40"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span className="text-green-500 text-[10px]">↑</span>
-            <span>BET: {roundBet.toLocaleString()}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Current round bet — decorator badge at top-right of pot pill */}
+        <AnimatePresence>
+          {roundBet > 0 && (
+            <motion.div
+              key="round-bet-badge"
+              className="absolute -top-2 -right-2 h-4 px-1.5 rounded-full bg-green-700 text-white text-[8px] font-bold flex items-center justify-center border border-green-400 z-10 leading-none whitespace-nowrap"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+            >
+              +{roundBet.toLocaleString()}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Side pots (if any) */}
       {pots.length > 1 && (

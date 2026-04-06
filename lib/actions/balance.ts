@@ -1,6 +1,7 @@
 'use server';
 
 import { auth } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { users, gameSessions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -237,6 +238,9 @@ export async function cashOut(
         eq(gameSessions.userId, userId)
       )
     );
+
+  // Bust the lobby page cache so the updated balance shows immediately on return.
+  revalidatePath('/');
 
   return { finalBalance };
 }
