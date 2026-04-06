@@ -65,7 +65,7 @@ export default function PlayerSeat({
   const avatarLetter = username.charAt(0).toUpperCase();
 
   return (
-    <div className={`relative flex flex-col items-center transition-all duration-300 ${isFolded ? 'opacity-25 grayscale' : ''}`}>
+    <div className={`relative flex flex-col items-center transition-all duration-300 ${isFolded ? (isBot ? 'opacity-25 grayscale' : 'opacity-40 grayscale') : ''}`}>
 
       {/* Sparkle particles — only for the human user when they win */}
       {isUserWinner && (
@@ -104,23 +104,22 @@ export default function PlayerSeat({
         </div>
       )}
 
-      {/* Winner badge — absolutely above the cards so it doesn't shift layout */}
-      {isWinner && (
-        <motion.span
-          className="absolute text-[10px] bg-amber-500 text-gray-900 rounded px-1.5 py-0.5 font-bold leading-none z-30 whitespace-nowrap"
-          style={{ bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)' }}
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          WINNER
-        </motion.span>
-      )}
-
       {/* Full cards with info banner overlaid at the bottom edge.
           The banner is semi-transparent + blurred so the suit symbols
           at the base of the card remain visible through it. */}
       <div className="relative">
+        {/* Winner badge — centered above the cards relative to the cards container */}
+        {isWinner && (
+          <motion.span
+            className="absolute text-[10px] bg-amber-500 text-gray-900 rounded px-1.5 py-0.5 font-bold leading-none z-30 whitespace-nowrap"
+            style={{ bottom: 'calc(100% + 4px)', left: '50%' }}
+            initial={{ opacity: 0, y: -4, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            transition={{ delay: 0.3 }}
+          >
+            WINNER
+          </motion.span>
+        )}
         {/* Cards — full height, no clip */}
         <div className="flex gap-1">
           {[0, 1].map((cardIdx) => {

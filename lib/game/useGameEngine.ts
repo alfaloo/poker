@@ -50,11 +50,18 @@ export interface UseGameEngineProps {
 }
 
 function buildSeatsState(table: PokerTable): SeatState[] {
-  return table.seats().map(seat => {
+  const handPlayers = table.isHandInProgress() ? table.handPlayers() : null;
+  return table.seats().map((seat, i) => {
     if (seat === null) {
       return { chips: 0, currentBet: 0, status: 'empty' as const };
     }
-    return { chips: seat.stack, currentBet: seat.betSize, status: 'active' as const };
+    // A player has folded if they are seated but absent from handPlayers
+    const isFolded = handPlayers !== null && handPlayers[i] === null;
+    return {
+      chips: seat.stack,
+      currentBet: seat.betSize,
+      status: isFolded ? 'folded' as const : 'active' as const,
+    };
   });
 }
 

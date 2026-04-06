@@ -159,9 +159,9 @@ export default function GameClient({
     isDealer: i === buttonSeat,
     isSmallBlind: i === sbSeat,
     isBigBlind: i === bbSeat,
-    // During play, seat.status tracks folds. At showdown the hand is over and
-    // buildSeatsState always returns 'active', so derive fold status from
-    // showdownSeats (only non-folded players are eligible for pots).
+    // During play, buildSeatsState derives fold status from handPlayers().
+    // At showdown the hand is over and handPlayers() is unreliable, so
+    // derive fold status from showdownSeats instead.
     isFolded: phase === 'showdown'
       ? (seat.status !== 'empty' && showdownSeats !== null && !showdownSeats.includes(i))
       : seat.status === 'folded',
