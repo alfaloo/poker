@@ -104,7 +104,7 @@ export const CARD_BACK_THEMES: Record<string, CardBackTheme> = {
     name: 'Pumpkin',
     bg: '#de741e',
     grid: '#913110',
-    diamond: '#fdba74',
+    diamond: '#ffce9a',
   },
   royal: {
     name: 'Royal',
@@ -116,6 +116,6 @@ export const CARD_BACK_THEMES: Record<string, CardBackTheme> = {
     name: 'Gold',
     bg: '#f3da22',
     grid: '#83760f',
-    diamond: '#fef08a',
+    diamond: '#fffbe0',
   },
 };
