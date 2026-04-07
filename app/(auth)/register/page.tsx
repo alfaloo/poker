@@ -21,6 +21,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
     setLoading(true);
 
     const result = await createUser({ username, password });
@@ -73,8 +78,9 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
+                minLength={8}
                 className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
-                placeholder="Choose a password"
+                placeholder="Choose a password (min 8 characters)"
               />
             </div>
 

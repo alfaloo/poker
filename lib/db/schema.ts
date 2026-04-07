@@ -9,6 +9,7 @@ import {
   jsonb,
   pgView,
 } from 'drizzle-orm/pg-core';
+import type { UserSettings } from '@/lib/settings';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -17,6 +18,7 @@ export const users = pgTable('users', {
   balance: integer('balance').notNull().default(400),
   dateLastAccessed: date('date_last_accessed').notNull().default(sql`CURRENT_DATE`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  settings: jsonb('settings').$type<UserSettings>().notNull().default(sql`'{}'`),
 });
 
 export const gameSessions = pgTable('game_sessions', {

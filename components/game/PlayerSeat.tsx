@@ -15,6 +15,7 @@ interface PlayerSeatProps {
   isSmallBlind: boolean;
   isBigBlind: boolean;
   isFolded: boolean;
+  isAllIn?: boolean;
   isBot: boolean;
   cards: CardType[] | null;
   isEmpty: boolean;
@@ -45,6 +46,7 @@ export default function PlayerSeat({
   isSmallBlind,
   isBigBlind,
   isFolded,
+  isAllIn,
   isBot,
   cards,
   isEmpty,
@@ -65,7 +67,7 @@ export default function PlayerSeat({
   const avatarLetter = username.charAt(0).toUpperCase();
 
   return (
-    <div className={`relative flex flex-col items-center transition-all duration-300 ${isFolded ? (isBot ? 'opacity-25 grayscale' : 'opacity-40 grayscale') : ''}`}>
+    <div className={`relative flex flex-col items-center transition-all duration-300 ${isFolded && !isAllIn ? (isBot ? 'opacity-25 grayscale' : 'opacity-40 grayscale') : ''}`}>
 
       {/* Sparkle particles — only for the human user when they win */}
       {isUserWinner && (
@@ -130,7 +132,7 @@ export default function PlayerSeat({
                   rank={card?.rank ?? 'A'}
                   suit={card?.suit ?? 'spades'}
                   faceDown={!card}
-                  faded={isFolded}
+                  faded={isFolded && !isAllIn}
                 />
               </div>
             );
@@ -205,6 +207,13 @@ export default function PlayerSeat({
               {isBot ? <span title="Bot" className="text-xs">🤖</span> : <span>{avatarLetter}</span>}
             </div>
 
+            {/* All in — top-left */}
+            {isAllIn && (
+              <div className="absolute -top-1.5 -left-1.5 h-4 px-1 rounded bg-orange-600 text-white text-[7px] font-bold flex items-center justify-center border border-orange-400 z-10 leading-none whitespace-nowrap">
+                ALL IN
+              </div>
+            )}
+
             {/* Dealer button — top-right */}
             {isDealer && (
               <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-white text-gray-900 text-[9px] font-bold flex items-center justify-center border border-gray-400 z-10 leading-none">
@@ -229,13 +238,15 @@ export default function PlayerSeat({
 
           {/* Username + chip stack */}
           <div className="flex flex-col flex-1 min-w-0">
-            <span
-              className={`text-[10px] font-semibold truncate leading-tight ${
-                isWinner ? 'text-amber-400' : 'text-gray-100'
-              }`}
-            >
-              {username}
-            </span>
+            <div className="flex items-center gap-1 leading-tight">
+              <span
+                className={`text-[10px] font-semibold truncate ${
+                  isWinner ? 'text-amber-400' : 'text-gray-100'
+                }`}
+              >
+                {username}
+              </span>
+            </div>
             <span className="text-[10px] text-amber-400 font-semibold leading-tight">
               {chips.toLocaleString()}
             </span>

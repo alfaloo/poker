@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import TierCard from '@/components/lobby/TierCard';
 import Toast from '@/components/ui/Toast';
 import Navbar from '@/components/ui/Navbar';
+import ResultBanner from '@/components/ui/ResultBanner';
 import { TIERS } from '@/lib/game/constants';
 import { initGameSession } from '@/lib/actions/session';
 
@@ -13,6 +14,7 @@ interface LobbyClientProps {
   balance: number;
   showErrorToast: boolean;
   showRewardToast: boolean;
+  resultNet: number | null;
 }
 
 export default function LobbyClient({
@@ -20,6 +22,7 @@ export default function LobbyClient({
   balance,
   showErrorToast,
   showRewardToast,
+  resultNet,
 }: LobbyClientProps) {
   const router = useRouter();
   const [numPlayers, setNumPlayers] = useState<number[]>([6, 6, 6]);
@@ -41,8 +44,10 @@ export default function LobbyClient({
   }
 
   return (
-    <div className="min-h-screen bg-green-950">
+    <div className="min-h-screen">
       <Navbar username={username} balance={balance} />
+
+      {resultNet !== null && <ResultBanner net={resultNet} />}
 
       <main className="max-w-5xl mx-auto px-4 py-12">
         <h1 className="text-3xl font-bold text-amber-400 text-center mb-2">Choose Your Table</h1>

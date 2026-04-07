@@ -16,6 +16,10 @@ export async function createUser(data: {
     return { success: false, error: 'Username and password are required' };
   }
 
+  if (password.length < 8) {
+    return { success: false, error: 'Password must be at least 8 characters' };
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
 
   try {

@@ -8,7 +8,7 @@ import { applyDailyRewardCached } from '@/lib/daily-reward-cached';
 import LobbyClient from './LobbyClient';
 
 interface PageProps {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; result?: string }>;
 }
 
 export default async function HomePage({ searchParams }: PageProps) {
@@ -33,9 +33,10 @@ export default async function HomePage({ searchParams }: PageProps) {
     redirect('/login');
   }
 
-  // (3) Check for error query param
+  // (3) Check for query params
   const params = await searchParams;
   const showErrorToast = params.error === 'invalid_session';
+  const resultNet = params.result !== undefined ? parseInt(params.result, 10) : null;
 
   // (4) Apply daily reward (uses cached call — layout already ran this for the same request)
   const { rewarded } = await applyDailyRewardCached(userId);
@@ -46,6 +47,7 @@ export default async function HomePage({ searchParams }: PageProps) {
       balance={user.balance}
       showErrorToast={showErrorToast}
       showRewardToast={rewarded}
+      resultNet={Number.isFinite(resultNet) ? resultNet : null}
     />
   );
 }

@@ -7,6 +7,7 @@ import { users, gameSessions } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { TIERS } from '@/lib/game/constants';
 import { startGameSession } from '@/lib/actions/balance';
+import { mergeSettings } from '@/lib/settings';
 
 export async function initGameSession(
   tierId: number,
@@ -24,7 +25,7 @@ export async function initGameSession(
   }
 
   const [[user], [priorSession]] = await Promise.all([
-    db.select({ balance: users.balance }).from(users).where(eq(users.id, userId)).limit(1),
+    db.select({ balance: users.balance, settings: users.settings }).from(users).where(eq(users.id, userId)).limit(1),
     db.select({ sessionStack: gameSessions.sessionStack }).from(gameSessions).where(eq(gameSessions.userId, userId)).limit(1),
   ]);
 
@@ -41,6 +42,7 @@ export async function initGameSession(
     throw new Error(`Insufficient balance. Need ${tier.minBalance} to enter ${tier.label} tier.`);
   }
 
+  const settings = mergeSettings(user.settings ?? {});
   const sessionId = randomUUID();
 
   await startGameSession(sessionId, userId, tier.buyIn, {
@@ -48,6 +50,7 @@ export async function initGameSession(
     bigBlind: tier.bigBlind,
     buyIn: tier.buyIn,
     numPlayers,
+    botDelayMs: settings.botDelayMs,
   });
 
   return { sessionId };
@@ -61,6 +64,7 @@ export async function getGameSessionConfig(
   buyIn: number;
   numPlayers: number;
   sessionStack: number;
+  botDelayMs: number;
 } | null> {
   const session = await auth();
   if (!session?.user?.id) {
@@ -88,6 +92,7 @@ export async function getGameSessionConfig(
     bigBlind: number;
     buyIn: number;
     numPlayers: number;
+    botDelayMs?: number;
   };
 
   return {
@@ -96,5 +101,6 @@ export async function getGameSessionConfig(
     buyIn: config.buyIn,
     numPlayers: config.numPlayers,
     sessionStack: gameSession.sessionStack,
+    botDelayMs: config.botDelayMs ?? 800,
   };
 }

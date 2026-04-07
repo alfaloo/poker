@@ -28,6 +28,7 @@ interface GameClientProps {
   buyIn: number;
   numPlayers: number;
   initialSessionStack: number;
+  botDelayMs: number;
 }
 
 export default function GameClient({
@@ -39,6 +40,7 @@ export default function GameClient({
   buyIn,
   numPlayers,
   initialSessionStack,
+  botDelayMs,
 }: GameClientProps) {
   const router = useRouter();
 
@@ -48,7 +50,6 @@ export default function GameClient({
     nextHand,
     leaveTable,
     getLegalActions,
-    getButtonSeat,
     getActingSeat,
   } = useGameEngine({
     smallBlind,
@@ -58,9 +59,10 @@ export default function GameClient({
     sessionId,
     userId,
     initialSessionStack,
+    botDelayMs,
   });
 
-  const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, showdownSeats, allHandNames, isPending, actionError } =
+  const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, showdownSeats, allHandNames, isPending, actionError, dealerSeat } =
     state;
 
   // ── Prompt visibility (appears after card flip animations settle) ─────────
@@ -99,7 +101,9 @@ export default function GameClient({
     i === 0 ? username : BOT_NAMES[i - 1] ?? `Bot ${i}`;
 
   // ── Dealer / blind positions ────────────────────────────────────────────────
-  const buttonSeat = getButtonSeat();
+  // Use dealerSeat from state (captured at hand start) so positions persist
+  // through showdown when isHandInProgress() is false and getButtonSeat() returns -1.
+  const buttonSeat = dealerSeat;
   const nonEmptyIndices = seats
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => s.status !== 'empty')
@@ -159,12 +163,11 @@ export default function GameClient({
     isDealer: i === buttonSeat,
     isSmallBlind: i === sbSeat,
     isBigBlind: i === bbSeat,
-    // During play, buildSeatsState derives fold status from handPlayers().
-    // At showdown the hand is over and handPlayers() is unreliable, so
-    // derive fold status from showdownSeats instead.
-    isFolded: phase === 'showdown'
-      ? (seat.status !== 'empty' && showdownSeats !== null && !showdownSeats.includes(i))
-      : seat.status === 'folded',
+    // seat.status is reliable in all phases: during play buildSeatsState derives
+    // it from handPlayers(), and at showdown seatsForShowdown preserves the
+    // pre-showdown snapshot where folded players retain status 'folded'.
+    isFolded: seat.status === 'folded',
+    isAllIn: seat.status === 'all-in',
     isBot: i !== 0,
     cards: cardsForSeat(i),
     isEmpty: seat.status === 'empty',
@@ -182,11 +185,11 @@ export default function GameClient({
   const handleLeaveTable = async () => {
     setIsLeaving(true);
     try {
-      await leaveTable();
+      const { net } = await leaveTable();
       // refresh() busts the Next.js router cache so the lobby re-fetches the
       // updated balance from the DB instead of serving a stale cached page.
       router.refresh();
-      router.push('/');
+      router.push(`/?result=${net}`);
     } catch {
       setIsLeaving(false);
       // actionError is set by the engine; UI shows it
@@ -203,7 +206,7 @@ export default function GameClient({
   if (phase === 'session_over' && !isLeaving) {
     const userWon = (seats[0]?.chips ?? 0) > 0;
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-8">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-8">
         <div className="text-center">
           <h1
             className={`text-5xl font-bold mb-4 ${
@@ -226,7 +229,7 @@ export default function GameClient({
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-950">
+    <div className="relative min-h-screen">
       <PokerTable
         seats={seatsData}
         communityCards={communityCardsPadded}
