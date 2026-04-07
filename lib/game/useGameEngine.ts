@@ -48,6 +48,7 @@ export interface UseGameEngineProps {
   sessionId: string;
   userId: string;
   initialSessionStack: number;
+  botDelayMs: number;
 }
 
 function buildSeatsState(table: PokerTable): SeatState[] {
@@ -84,6 +85,7 @@ export function useGameEngine({
   sessionId,
   userId,
   initialSessionStack,
+  botDelayMs,
 }: UseGameEngineProps) {
   const tableRef = useRef<PokerTable | null>(null);
   const processingRef = useRef(false);
@@ -346,13 +348,11 @@ export function useGameEngine({
       return;
     }
 
-    // Bot's turn — show the bot as active (pulsing) for 1.2 s before it acts
+    // Bot's turn — show the bot as active (pulsing) for botDelayMs before it acts
     processingRef.current = true;
     syncTableState(table, { phase: 'waiting', holeCards: [...holeCardsRef.current] });
     try {
-      await new Promise<void>(resolve => setTimeout(resolve, 1200));
-      if (unmountedRef.current) return;
-      await takeBotAction(table);
+      await takeBotAction(table, botDelayMs);
     } finally {
       processingRef.current = false;
     }
@@ -360,7 +360,7 @@ export function useGameEngine({
     if (!unmountedRef.current) {
       processNextStep();
     }
-  }, [sessionId, userId, syncTableState]);
+  }, [sessionId, userId, syncTableState, botDelayMs]);
 
   const startHand = useCallback(() => {
     const table = tableRef.current;
@@ -502,7 +502,7 @@ export function useGameEngine({
     );
   }, []);
 
-  const leaveTable = useCallback(async (): Promise<{ finalBalance: number }> => {
+  const leaveTable = useCallback(async (): Promise<{ finalBalance: number; net: number }> => {
     setState(prev => ({ ...prev, isPending: true, actionError: null }));
     try {
       const result = await cashOutAction(sessionId, userId);

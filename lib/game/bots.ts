@@ -1,11 +1,9 @@
 import { Table } from 'poker-ts';
 
-export const BOT_THINK_DELAY_MS = 800;
-
 type PokerTable = InstanceType<typeof Table>;
 
-export async function takeBotAction(table: PokerTable): Promise<void> {
-  await new Promise<void>(resolve => setTimeout(resolve, BOT_THINK_DELAY_MS));
+export async function takeBotAction(table: PokerTable, delayMs: number = 800): Promise<void> {
+  await new Promise<void>(resolve => setTimeout(resolve, delayMs));
 
   const { actions } = table.legalActions();
 

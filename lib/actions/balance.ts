@@ -52,7 +52,7 @@ export async function startGameSession(
   sessionId: string,
   userId: string,
   buyIn: number,
-  config: { smallBlind: number; bigBlind: number; buyIn: number; numPlayers: number }
+  config: { smallBlind: number; bigBlind: number; buyIn: number; numPlayers: number; botDelayMs?: number }
 ): Promise<void> {
   const session = await auth();
   assertUser(session?.user?.id, userId);
@@ -194,12 +194,12 @@ export async function creditToSession(
 export async function cashOut(
   sessionId: string,
   userId: string
-): Promise<{ finalBalance: number }> {
+): Promise<{ finalBalance: number; net: number }> {
   const session = await auth();
   assertUser(session?.user?.id, userId);
 
   const [gameSession] = await db
-    .select({ sessionStack: gameSessions.sessionStack })
+    .select({ sessionStack: gameSessions.sessionStack, config: gameSessions.config })
     .from(gameSessions)
     .where(
       and(
@@ -223,6 +223,8 @@ export async function cashOut(
     throw new Error('User not found');
   }
 
+  const buyIn = (gameSession.config as { buyIn: number }).buyIn;
+  const net = gameSession.sessionStack - buyIn;
   const finalBalance = user.balance + gameSession.sessionStack;
 
   await db
@@ -242,5 +244,5 @@ export async function cashOut(
   // Bust the lobby page cache so the updated balance shows immediately on return.
   revalidatePath('/');
 
-  return { finalBalance };
+  return { finalBalance, net };
 }

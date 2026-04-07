@@ -20,7 +20,7 @@ export default async function GamePage({ params }: GamePageProps) {
     redirect('/?error=invalid_session');
   }
 
-  const { smallBlind, bigBlind, buyIn, numPlayers, sessionStack } = config;
+  const { smallBlind, bigBlind, buyIn, numPlayers, sessionStack, botDelayMs } = config;
   const userId = session.user.id;
   const username =
     (session.user as { id: string; username?: string }).username ?? 'You';
@@ -35,6 +35,7 @@ export default async function GamePage({ params }: GamePageProps) {
       buyIn={buyIn}
       numPlayers={numPlayers}
       initialSessionStack={sessionStack}
+      botDelayMs={botDelayMs}
     />
   );
 }

@@ -17,9 +17,9 @@ export default async function LeaderboardPage() {
   const userId = session.user.id;
   const sessionUsername = (session.user as { id: string; username?: string }).username ?? '';
 
-  // Fetch current user for Navbar (balance + username)
+  // Fetch current user for Navbar
   const [currentUser] = await db
-    .select({ balance: users.balance, username: users.username })
+    .select({ username: users.username, balance: users.balance })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -39,7 +39,7 @@ export default async function LeaderboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-green-950 text-white">
+    <div className="min-h-screen text-white">
       <Navbar username={currentUser.username} balance={currentUser.balance} />
 
       <main className="max-w-2xl mx-auto px-4 py-12">

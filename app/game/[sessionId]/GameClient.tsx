@@ -28,6 +28,7 @@ interface GameClientProps {
   buyIn: number;
   numPlayers: number;
   initialSessionStack: number;
+  botDelayMs: number;
 }
 
 export default function GameClient({
@@ -39,6 +40,7 @@ export default function GameClient({
   buyIn,
   numPlayers,
   initialSessionStack,
+  botDelayMs,
 }: GameClientProps) {
   const router = useRouter();
 
@@ -57,6 +59,7 @@ export default function GameClient({
     sessionId,
     userId,
     initialSessionStack,
+    botDelayMs,
   });
 
   const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, showdownSeats, allHandNames, isPending, actionError, dealerSeat } =
@@ -182,11 +185,11 @@ export default function GameClient({
   const handleLeaveTable = async () => {
     setIsLeaving(true);
     try {
-      await leaveTable();
+      const { net } = await leaveTable();
       // refresh() busts the Next.js router cache so the lobby re-fetches the
       // updated balance from the DB instead of serving a stale cached page.
       router.refresh();
-      router.push('/');
+      router.push(`/?result=${net}`);
     } catch {
       setIsLeaving(false);
       // actionError is set by the engine; UI shows it
@@ -203,7 +206,7 @@ export default function GameClient({
   if (phase === 'session_over' && !isLeaving) {
     const userWon = (seats[0]?.chips ?? 0) > 0;
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-8">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-8">
         <div className="text-center">
           <h1
             className={`text-5xl font-bold mb-4 ${
@@ -226,7 +229,7 @@ export default function GameClient({
   }
 
   return (
-    <div className="relative min-h-screen bg-gray-950">
+    <div className="relative min-h-screen">
       <PokerTable
         seats={seatsData}
         communityCards={communityCardsPadded}

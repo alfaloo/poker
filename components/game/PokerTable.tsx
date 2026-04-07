@@ -6,6 +6,9 @@ import PlayerSeat from './PlayerSeat';
 import CommunityCards from './CommunityCards';
 import PotDisplay from './PotDisplay';
 import { Card as CardType } from '@/lib/game/deck';
+import { useTheme } from '@/lib/theme/ThemeProvider';
+import { THEMES } from '@/lib/theme/themes';
+import { DEFAULT_SETTINGS } from '@/lib/settings';
 
 export interface SeatData {
   seat: number;
@@ -85,6 +88,8 @@ export default function PokerTable({
 }: PokerTableProps) {
   const N = seats.length || 1;
   const containerRef = useRef<HTMLDivElement>(null);
+  const { tableTheme } = useTheme();
+  const theme = THEMES[tableTheme] ?? THEMES[DEFAULT_SETTINGS.tableTheme];
 
   // Table felt ellipse: left 10 %, top 4 %, width 80 %, height 78 %
   //   → centre (50 %, 43 %), semi-axes rx=40, ry=39.
@@ -119,8 +124,7 @@ export default function PokerTable({
           width: '80%',
           height: '78%',
           borderRadius: '50%',
-          background:
-            'radial-gradient(ellipse at 50% 40%, #22883f 0%, #165c2c 55%, #0c3d1c 100%)',
+          background: theme.felt,
           border: '5px solid #b8860b',
           boxShadow:
             '0 0 0 3px #7a5408, inset 0 0 70px rgba(0,0,0,0.35), 0 10px 40px rgba(0,0,0,0.75)',
