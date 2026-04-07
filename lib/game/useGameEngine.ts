@@ -35,6 +35,7 @@ export interface GameState {
   showdownSeats: number[] | null;
   allHandNames: Record<number, string> | null;
   userSeat: 0;
+  dealerSeat: number;
   isPending: boolean;
   actionError: string | null;
 }
@@ -55,12 +56,18 @@ function buildSeatsState(table: PokerTable): SeatState[] {
     if (seat === null) {
       return { chips: 0, currentBet: 0, status: 'empty' as const };
     }
-    // A player has folded if they are seated but absent from handPlayers
-    const isFolded = handPlayers !== null && handPlayers[i] === null;
+    // A player is absent from handPlayers if they have folded OR gone all-in
+    // (both leave the betting round). Distinguish by stack: all-in players
+    // have 0 remaining stack while folded players still have chips.
+    const isAbsent = handPlayers !== null && handPlayers[i] === null;
+    if (isAbsent) {
+      const status = seat.stack === 0 ? 'all-in' as const : 'folded' as const;
+      return { chips: seat.stack, currentBet: seat.betSize, status };
+    }
     return {
       chips: seat.stack,
       currentBet: seat.betSize,
-      status: isFolded ? 'folded' as const : 'active' as const,
+      status: 'active' as const,
     };
   });
 }
@@ -82,6 +89,12 @@ export function useGameEngine({
   const processingRef = useRef(false);
   const unmountedRef = useRef(false);
   const holeCardsRef = useRef<(Card[] | null)[]>(Array(numPlayers).fill(null));
+  // Accumulated eligible-player sets per pot index, updated after each endBettingRound.
+  // Workaround for a poker-ts bug: when a betting round has no bets (everyone checks),
+  // Pot.collectBetsFrom() resets eligiblePlayers to only the current _players — which
+  // excludes all-in players who were removed from _players in a previous round.
+  // By unioning each round's snapshot we preserve all-in players' eligibility.
+  const potEligibilityRef = useRef<number[][]>([]);
 
   const [state, setState] = useState<GameState>({
     phase: 'waiting',
@@ -97,6 +110,7 @@ export function useGameEngine({
     showdownSeats: null,
     allHandNames: null,
     userSeat: 0,
+    dealerSeat: -1,
     isPending: false,
     actionError: null,
   });
@@ -133,7 +147,17 @@ export function useGameEngine({
         // showdown() sets handInProgress=false and these methods all assert
         // handInProgress() internally, so they must be captured first.
         const pots = table.pots();
-        const isFoldWin = pots.every(pot => pot.eligiblePlayers.length <= 1);
+
+        // Use accumulated eligibility (potEligibilityRef) instead of the raw
+        // pot.eligiblePlayers — which poker-ts overwrites in no-bet rounds,
+        // silently dropping all-in players who left the betting-round array.
+        // Fall back to pot.eligiblePlayers only on the first hand where the ref
+        // may not have been populated (shouldn't normally occur).
+        const eligiblePerPot: number[][] = pots.map((pot, idx) =>
+          potEligibilityRef.current[idx] ?? pot.eligiblePlayers
+        );
+
+        const isFoldWin = eligiblePerPot.every(ep => ep.length <= 1);
         const tableHoleCards = table.holeCards() as (Card[] | null)[];
         const communityCardsFull = table.communityCards() as Card[];
         holeCardsRef.current = tableHoleCards;
@@ -149,12 +173,17 @@ export function useGameEngine({
         const winnerInfos: WinnerInfo[] = [];
         const commStrings = communityCardsFull.map(cardToSolverString);
 
-        // Collect all non-folded seats across all pots (for showdown reveal)
+        // Collect all non-folded seats across all pots (for showdown reveal).
+        // Filter out players whose snapshot status is 'folded' — potEligibilityRef
+        // unions across rounds and can retain post-flop folders who were eligible
+        // in earlier streets, so we must exclude them explicitly.
         const showdownSeatsSet: Record<number, true> = {};
-        for (const pot of pots) {
-          for (const seat of pot.eligiblePlayers) showdownSeatsSet[seat] = true;
+        for (const ep of eligiblePerPot) {
+          for (const seat of ep) showdownSeatsSet[seat] = true;
         }
-        const showdownSeats = Object.keys(showdownSeatsSet).map(Number);
+        const showdownSeats = Object.keys(showdownSeatsSet)
+          .map(Number)
+          .filter(i => seatsSnapshot[i]?.status !== 'folded');
 
         // Evaluate hand names for every seat still in the hand
         const allHoleCardsBySeat: Record<number, string[]> = {};
@@ -166,8 +195,9 @@ export function useGameEngine({
           ? { handNames: {} as Record<number, string> }
           : evaluatePot(showdownSeats, allHoleCardsBySeat, commStrings);
 
-        for (const pot of pots) {
-          const eligibleSeats = pot.eligiblePlayers;
+        for (let potIdx = 0; potIdx < pots.length; potIdx++) {
+          const pot = pots[potIdx];
+          const eligibleSeats = eligiblePerPot[potIdx];
           const holeCardsBySeat: Record<number, string[]> = {};
           for (const seat of eligibleSeats) {
             const cards = tableHoleCards[seat];
@@ -220,6 +250,29 @@ export function useGameEngine({
           return won > 0 ? { ...seat, chips: seat.chips + won } : seat;
         });
 
+        // Reconcile poker-ts internal chip counts with our correct distribution.
+        // poker-ts calls showdown() using its own (potentially buggy) eligiblePlayers,
+        // which can give all chips to the wrong player and stand up winners who should
+        // still be seated. This causes nextHand() to see numActive=1 and fire
+        // session_over even when bots still have chips.
+        for (let i = 0; i < seatsForShowdown.length; i++) {
+          const correctChips = seatsForShowdown[i].chips;
+          const tableSeat = table.seats()[i];
+          if (correctChips > 0) {
+            if (tableSeat === null) {
+              // Incorrectly stood up — re-seat with correct chips
+              table.sitDown(i, correctChips);
+            } else if (tableSeat.totalChips !== correctChips) {
+              // Wrong chip count — re-seat to fix
+              table.standUp(i);
+              table.sitDown(i, correctChips);
+            }
+          } else if (tableSeat !== null && tableSeat.totalChips === 0) {
+            // Busted but not yet stood up
+            table.standUp(i);
+          }
+        }
+
         syncTableState(table, {
           phase: 'showdown',
           seats: seatsForShowdown,
@@ -244,6 +297,19 @@ export function useGameEngine({
       try {
         table.endBettingRound();
         if (unmountedRef.current) return;
+
+        // Accumulate eligible players per pot. poker-ts resets pot.eligiblePlayers
+        // to only the current _players when a round has no bets, which silently
+        // removes all-in players. Unioning across rounds preserves them.
+        table.pots().forEach((pot, idx) => {
+          const prev = potEligibilityRef.current[idx];
+          if (!prev) {
+            potEligibilityRef.current[idx] = [...pot.eligiblePlayers];
+          } else {
+            const union = new Set([...prev, ...pot.eligiblePlayers]);
+            potEligibilityRef.current[idx] = Array.from(union);
+          }
+        });
 
         // If the river just finished, all betting rounds are complete —
         // let the showdown branch at the top of this function handle it.
@@ -300,6 +366,7 @@ export function useGameEngine({
     const table = tableRef.current;
     if (!table) return;
 
+    potEligibilityRef.current = [];
     table.startHand();
 
     // Read hole cards dealt by poker-ts's internal deck — this is the source of
@@ -308,6 +375,7 @@ export function useGameEngine({
     holeCardsRef.current = holeCards;
 
     const round = table.roundOfBetting();
+    const dealerSeat = table.button();
     syncTableState(table, {
       phase: 'waiting',
       round,
@@ -317,6 +385,7 @@ export function useGameEngine({
       isFoldWin: false,
       showdownSeats: null,
       allHandNames: null,
+      dealerSeat,
       isPending: false,
       actionError: null,
     });

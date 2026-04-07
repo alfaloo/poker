@@ -18,6 +18,7 @@ export interface SeatData {
   isSmallBlind: boolean;
   isBigBlind: boolean;
   isFolded: boolean;
+  isAllIn?: boolean;
   isBot: boolean;
   cards: CardType[] | null;
   isEmpty: boolean;

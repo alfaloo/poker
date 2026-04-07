@@ -48,7 +48,6 @@ export default function GameClient({
     nextHand,
     leaveTable,
     getLegalActions,
-    getButtonSeat,
     getActingSeat,
   } = useGameEngine({
     smallBlind,
@@ -60,7 +59,7 @@ export default function GameClient({
     initialSessionStack,
   });
 
-  const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, showdownSeats, allHandNames, isPending, actionError } =
+  const { phase, seats, holeCards, communityCards, pot, currentBet, winners, isFoldWin, showdownSeats, allHandNames, isPending, actionError, dealerSeat } =
     state;
 
   // ── Prompt visibility (appears after card flip animations settle) ─────────
@@ -99,7 +98,9 @@ export default function GameClient({
     i === 0 ? username : BOT_NAMES[i - 1] ?? `Bot ${i}`;
 
   // ── Dealer / blind positions ────────────────────────────────────────────────
-  const buttonSeat = getButtonSeat();
+  // Use dealerSeat from state (captured at hand start) so positions persist
+  // through showdown when isHandInProgress() is false and getButtonSeat() returns -1.
+  const buttonSeat = dealerSeat;
   const nonEmptyIndices = seats
     .map((s, i) => ({ s, i }))
     .filter(({ s }) => s.status !== 'empty')
@@ -159,12 +160,11 @@ export default function GameClient({
     isDealer: i === buttonSeat,
     isSmallBlind: i === sbSeat,
     isBigBlind: i === bbSeat,
-    // During play, buildSeatsState derives fold status from handPlayers().
-    // At showdown the hand is over and handPlayers() is unreliable, so
-    // derive fold status from showdownSeats instead.
-    isFolded: phase === 'showdown'
-      ? (seat.status !== 'empty' && showdownSeats !== null && !showdownSeats.includes(i))
-      : seat.status === 'folded',
+    // seat.status is reliable in all phases: during play buildSeatsState derives
+    // it from handPlayers(), and at showdown seatsForShowdown preserves the
+    // pre-showdown snapshot where folded players retain status 'folded'.
+    isFolded: seat.status === 'folded',
+    isAllIn: seat.status === 'all-in',
     isBot: i !== 0,
     cards: cardsForSeat(i),
     isEmpty: seat.status === 'empty',
