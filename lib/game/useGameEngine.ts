@@ -3,7 +3,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Table } from 'poker-ts';
 import { cardToSolverString, Card } from './deck';
-import { takeBotAction } from './bots';
+import { getBotDecision, createBotConfigs, tierFromBigBlind } from './bots';
+import { extractTableSnapshot } from './bots/snapshot';
+import { sleep } from './bots/shared/utils';
+import type { BotConfig } from './bots/types';
 import { evaluatePot } from './solver';
 import { deductFromSession, creditToSession, cashOut as cashOutAction } from '@/lib/actions/balance';
 
@@ -87,10 +90,13 @@ export function useGameEngine({
   initialSessionStack,
   botDelayMs,
 }: UseGameEngineProps) {
+  const tier = tierFromBigBlind(bigBlind);
+
   const tableRef = useRef<PokerTable | null>(null);
   const processingRef = useRef(false);
   const unmountedRef = useRef(false);
   const holeCardsRef = useRef<(Card[] | null)[]>(Array(numPlayers).fill(null));
+  const botConfigsRef = useRef<BotConfig[]>([]);
   // Accumulated eligible-player sets per pot index, updated after each endBettingRound.
   // Workaround for a poker-ts bug: when a betting round has no bets (everyone checks),
   // Pot.collectBetsFrom() resets eligiblePlayers to only the current _players — which
@@ -135,6 +141,21 @@ export function useGameEngine({
       ...extraState,
     }));
   }, [bigBlind]);
+
+  const handleBotTurn = useCallback(async (botSeat: number) => {
+    const table = tableRef.current;
+    if (!table) return;
+    const botConfig = botConfigsRef.current[botSeat - 1];
+    if (!botConfig) return;
+    const snapshot = extractTableSnapshot(table, botSeat, bigBlind);
+    const { action, amount } = getBotDecision(snapshot, botConfig);
+    await sleep(botDelayMs);
+    if (amount !== undefined) {
+      table.actionTaken(action, amount);
+    } else {
+      table.actionTaken(action);
+    }
+  }, [bigBlind, botDelayMs]);
 
   const processNextStep = useCallback(async () => {
     if (processingRef.current || unmountedRef.current) return;
@@ -348,11 +369,12 @@ export function useGameEngine({
       return;
     }
 
-    // Bot's turn — show the bot as active (pulsing) for botDelayMs before it acts
+    // Bot's turn — show the bot as active (pulsing) before it acts
+    const botSeat = actingSeat;
     processingRef.current = true;
     syncTableState(table, { phase: 'waiting', holeCards: [...holeCardsRef.current] });
     try {
-      await takeBotAction(table, botDelayMs);
+      await handleBotTurn(botSeat);
     } finally {
       processingRef.current = false;
     }
@@ -360,7 +382,7 @@ export function useGameEngine({
     if (!unmountedRef.current) {
       processNextStep();
     }
-  }, [sessionId, userId, syncTableState, botDelayMs]);
+  }, [sessionId, userId, syncTableState, handleBotTurn]);
 
   const startHand = useCallback(() => {
     const table = tableRef.current;
@@ -396,6 +418,7 @@ export function useGameEngine({
   useEffect(() => {
     unmountedRef.current = false;
     processingRef.current = false;
+    botConfigsRef.current = createBotConfigs(tier, numPlayers - 1);
     const table = new Table({ smallBlind, bigBlind }, numPlayers);
     tableRef.current = table;
 
