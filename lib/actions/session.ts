@@ -50,7 +50,7 @@ export async function initGameSession(
     bigBlind: tier.bigBlind,
     buyIn: tier.buyIn,
     numPlayers,
-    botDelayMs: settings.botDelayMs,
+    botDelayMs: settings.botDelayEnabled ? settings.botDelayMs : 0,
   });
 
   return { sessionId };
