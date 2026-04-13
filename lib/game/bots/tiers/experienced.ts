@@ -4,7 +4,7 @@ import { getHandTier, OPEN_RAISE_THRESHOLD } from '../shared/handRanks';
 import { estimateEquity } from '../shared/equity';
 import { detectDraws } from '../shared/draws';
 import { analyseBoardTexture } from '../shared/boardTexture';
-import { potOddsRequired } from '../shared/potOdds';
+import { potOddsRequired, spr } from '../shared/potOdds';
 
 // ---------------------------------------------------------------------------
 // Short-Stack Handling (Push/Fold)
@@ -147,6 +147,17 @@ function postflopMedium(
   }
 
   const facingBet = toCall > 0;
+
+  // SPR < 1: pot-committed — shove with any reasonable equity to avoid leaving chips behind
+  const sprVal = spr(snapshot.botStack, snapshot.potSize);
+  if (sprVal < 1 && adjustedEquity > 0.45) {
+    const canBetOrRaise = canRaise || canBet;
+    if (canBetOrRaise) {
+      const shoveAction = canRaise ? 'raise' : 'bet';
+      return { action: shoveAction, amount: snapshot.maxRaise };
+    }
+    if (facingBet) return { action: 'call' };
+  }
 
   if (facingBet) {
     // Fold if adjusted equity is below pot odds threshold

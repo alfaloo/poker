@@ -8,6 +8,11 @@ import { assignPersonalities } from './personalities';
 export { tierFromBigBlind };
 
 export function getBotDecision(snapshot: TableSnapshot, config: BotConfig): BotDecision {
+  // Guard: if only one active player remains (fold-win), return safely without crashing
+  if (snapshot.numActivePlayers <= 1) {
+    return snapshot.legalActions.includes('check') ? { action: 'check' } : { action: 'fold' };
+  }
+
   switch (config.tier) {
     case 'easy':
       return decideCasual(snapshot, config.personality);

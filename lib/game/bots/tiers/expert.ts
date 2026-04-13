@@ -206,6 +206,17 @@ function postflopHard(
   const canCheck  = snapshot.legalActions.includes('check');
   const facingBet = snapshot.toCall > 0;
 
+  // SPR < 1: pot-committed — shove with any reasonable equity to avoid leaving chips behind
+  const sprVal = spr(snapshot.botStack, snapshot.potSize);
+  if (sprVal < 1 && adjustedEquity > 0.45) {
+    const canBetOrRaise = snapshot.legalActions.includes('raise') || snapshot.legalActions.includes('bet');
+    if (canBetOrRaise) {
+      const shoveAction = snapshot.legalActions.includes('raise') ? 'raise' : 'bet';
+      return { action: shoveAction, amount: snapshot.maxRaise };
+    }
+    if (facingBet) return { action: 'call' };
+  }
+
   if (facingBet) {
     // Strict pot-odds threshold (no loose margin)
     if (adjustedEquity < potOddsReq) return { action: 'fold' };
