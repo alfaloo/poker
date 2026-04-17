@@ -69,32 +69,27 @@ export default function GameClient({
   const [promptVisible, setPromptVisible] = useState(false);
 
   useEffect(() => {
-    if (phase !== 'showdown' || isFoldWin) {
+    if (phase !== 'showdown') {
       setPromptVisible(false);
       return;
     }
-    // 700ms: enough for the faceDown→faceUp flip animation (300ms) + buffer
-    const t = setTimeout(() => setPromptVisible(true), 700);
+    // Fold-wins have no card-flip animations so the prompt can appear sooner.
+    // Regular showdowns wait 700 ms for the faceDown→faceUp flip (300 ms) + buffer.
+    const delay = isFoldWin ? 300 : 700;
+    const t = setTimeout(() => setPromptVisible(true), delay);
     return () => clearTimeout(t);
   }, [phase, isFoldWin]);
 
-  // ── Auto-advance fold wins after 1.5 s ───────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'showdown' || !isFoldWin) return;
-    const t = setTimeout(() => nextHand(), 1500);
-    return () => clearTimeout(t);
-  }, [phase, isFoldWin, nextHand]);
-
   // ── Keydown → next hand ──────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'showdown' || isFoldWin || !promptVisible) return;
+    if (phase !== 'showdown' || !promptVisible) return;
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       nextHand();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [phase, isFoldWin, promptVisible, nextHand]);
+  }, [phase, promptVisible, nextHand]);
 
   // ── Seat names ─────────────────────────────────────────────────────────────
   const seatName = (i: number) =>
@@ -236,10 +231,10 @@ export default function GameClient({
         pots={potsDisplay}
         roundBet={roundBet}
         winnerSeatIndex={winnerSeatIndex}
-        onTableClick={phase === 'showdown' && !isFoldWin && promptVisible ? nextHand : undefined}
+        onTableClick={phase === 'showdown' && promptVisible ? nextHand : undefined}
         showCashoutButton={phase === 'showdown'}
         onCashout={handleLeaveTable}
-        showContinuePrompt={promptVisible && !isFoldWin}
+        showContinuePrompt={promptVisible}
       >
         {/* Action panel: visible when it is the user's turn */}
         <AnimatePresence>

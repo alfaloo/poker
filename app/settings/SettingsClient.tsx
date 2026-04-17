@@ -24,7 +24,18 @@ export default function SettingsClient({ initialSettings, currentUsername }: Set
 
   // ── Game Play ──────────────────────────────────────────────────────────────
   const [botDelayMs, setBotDelayMs] = useState(initialSettings.botDelayMs);
+  const [botDelayEnabled, setBotDelayEnabled] = useState(initialSettings.botDelayEnabled);
   const [savingDelay, setSavingDelay] = useState(false);
+
+  const handleDelayToggle = async (enabled: boolean) => {
+    setBotDelayEnabled(enabled);
+    setSavingDelay(true);
+    try {
+      await updateUserSettings({ botDelayEnabled: enabled });
+    } finally {
+      setSavingDelay(false);
+    }
+  };
 
   const handleDelayCommit = async (value: number) => {
     setSavingDelay(true);
@@ -104,12 +115,24 @@ export default function SettingsClient({ initialSettings, currentUsername }: Set
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-gray-300">Bot Action Delay</label>
-            <span className="text-amber-400 font-semibold text-sm tabular-nums">
-              {(botDelayMs / 1000).toFixed(1)} s
-              {savingDelay && <span className="ml-2 text-gray-500 text-xs">Saving…</span>}
-            </span>
+            <div className="flex items-center gap-3">
+              {savingDelay && <span className="text-gray-500 text-xs">Saving…</span>}
+              <span className="text-amber-400 font-semibold text-sm tabular-nums">
+                {botDelayEnabled ? `${(botDelayMs / 1000).toFixed(1)} s` : 'Off'}
+              </span>
+              <button
+                role="switch"
+                aria-checked={botDelayEnabled}
+                onClick={() => handleDelayToggle(!botDelayEnabled)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${botDelayEnabled ? 'bg-amber-500' : 'bg-gray-600'}`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${botDelayEnabled ? 'translate-x-4' : 'translate-x-1'}`}
+                />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-500">
+          <div className={`flex items-center gap-3 text-xs ${botDelayEnabled ? 'text-gray-500' : 'text-gray-700'}`}>
             <span>Fast</span>
             <input
               type="range"
@@ -117,10 +140,11 @@ export default function SettingsClient({ initialSettings, currentUsername }: Set
               max={4000}
               step={200}
               value={botDelayMs}
+              disabled={!botDelayEnabled}
               onChange={(e) => setBotDelayMs(Number(e.target.value))}
               onMouseUp={(e) => handleDelayCommit(Number((e.target as HTMLInputElement).value))}
               onTouchEnd={(e) => handleDelayCommit(Number((e.target as HTMLInputElement).value))}
-              className="flex-1 accent-amber-400"
+              className={`flex-1 ${botDelayEnabled ? 'accent-amber-400' : 'opacity-40 cursor-not-allowed'}`}
             />
             <span>Slow</span>
           </div>

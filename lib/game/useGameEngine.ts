@@ -3,7 +3,10 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { Table } from 'poker-ts';
 import { cardToSolverString, Card } from './deck';
-import { takeBotAction } from './bots';
+import { getBotDecision, createBotConfigs, tierFromBigBlind } from './bots';
+import { extractTableSnapshot } from './bots/snapshot';
+import { sleep } from './bots/shared/utils';
+import type { BotConfig } from './bots/types';
 import { evaluatePot } from './solver';
 import { deductFromSession, creditToSession, cashOut as cashOutAction } from '@/lib/actions/balance';
 
@@ -87,16 +90,23 @@ export function useGameEngine({
   initialSessionStack,
   botDelayMs,
 }: UseGameEngineProps) {
+  const tier = tierFromBigBlind(bigBlind);
+
   const tableRef = useRef<PokerTable | null>(null);
   const processingRef = useRef(false);
   const unmountedRef = useRef(false);
   const holeCardsRef = useRef<(Card[] | null)[]>(Array(numPlayers).fill(null));
+  const botConfigsRef = useRef<BotConfig[]>([]);
   // Accumulated eligible-player sets per pot index, updated after each endBettingRound.
   // Workaround for a poker-ts bug: when a betting round has no bets (everyone checks),
   // Pot.collectBetsFrom() resets eligiblePlayers to only the current _players — which
   // excludes all-in players who were removed from _players in a previous round.
   // By unioning each round's snapshot we preserve all-in players' eligibility.
   const potEligibilityRef = useRef<number[][]>([]);
+  // Amount the user's blind posted at hand start that hasn't been synced to the DB yet.
+  // poker-ts posts blinds inside startHand() without us calling deductFromSession, so
+  // we track it here and flush it at the start of the first processNextStep call.
+  const pendingBlindDeductRef = useRef<number>(0);
 
   const [state, setState] = useState<GameState>({
     phase: 'waiting',
@@ -136,10 +146,51 @@ export function useGameEngine({
     }));
   }, [bigBlind]);
 
+  const handleBotTurn = useCallback(async (botSeat: number) => {
+    const table = tableRef.current;
+    if (!table) return;
+    const botConfig = botConfigsRef.current[botSeat - 1];
+    if (!botConfig) return;
+    const snapshot = extractTableSnapshot(table, botSeat, bigBlind);
+    const { action, amount } = getBotDecision(snapshot, botConfig);
+    await sleep(botDelayMs);
+    if (amount !== undefined) {
+      table.actionTaken(action, amount);
+    } else {
+      table.actionTaken(action);
+    }
+  }, [bigBlind, botDelayMs]);
+
   const processNextStep = useCallback(async () => {
     if (processingRef.current || unmountedRef.current) return;
     const table = tableRef.current;
     if (!table || !table.isHandInProgress()) return;
+
+    // --- Flush pending blind deduction ---
+    // poker-ts posts the user's blind inside startHand() without going through
+    // performAction, so sessionStack in the DB is never decremented for it.
+    // We detect the blind amount in startHand() and deduct it here on the first
+    // processNextStep call of each hand before any other game logic runs.
+    if (pendingBlindDeductRef.current > 0) {
+      const blindAmount = pendingBlindDeductRef.current;
+      pendingBlindDeductRef.current = 0;
+      processingRef.current = true;
+      try {
+        await deductFromSession(sessionId, userId, blindAmount);
+      } catch (e) {
+        processingRef.current = false;
+        if (!unmountedRef.current) {
+          setState(prev => ({
+            ...prev,
+            actionError: e instanceof Error ? e.message : 'Failed to post blind.',
+          }));
+        }
+        return;
+      }
+      processingRef.current = false;
+      if (unmountedRef.current) return;
+      if (!tableRef.current?.isHandInProgress()) return;
+    }
 
     // --- Showdown ---
     if (table.areBettingRoundsCompleted()) {
@@ -167,7 +218,25 @@ export function useGameEngine({
         // Snapshot seats BEFORE showdown() — poker-ts internally calls
         // standUpBustedPlayers() which nulls out 0-chip seats, making
         // all-in players who lost vanish from buildSeatsState reads.
-        const seatsSnapshot = buildSeatsState(table);
+        //
+        // We derive status from pot eligibility rather than handPlayers() because
+        // once areBettingRoundsCompleted() is true, handPlayers() may return null
+        // for every seat (including callers who still have chips). Using handPlayers()
+        // would misclassify a bot who called the all-in (stack > 0, absent from
+        // handPlayers) as 'folded', blacking them out visually and — critically —
+        // leaving them in the per-pot evaluation where they could "beat" the real
+        // winner if their hand is better.
+        const allEligibleAtShowdown = new Set(eligiblePerPot.flat());
+        const seatsSnapshot: SeatState[] = table.seats().map((seat, i): SeatState => {
+          if (seat === null) return { chips: 0, currentBet: 0, status: 'empty' };
+          if (allEligibleAtShowdown.has(i)) {
+            // In the hand: all-in (0 remaining chips) or still active (has chips)
+            const status = seat.stack === 0 ? 'all-in' as const : 'active' as const;
+            return { chips: seat.stack, currentBet: seat.betSize, status };
+          }
+          // Not eligible for any pot → player folded earlier
+          return { chips: seat.stack, currentBet: seat.betSize, status: 'folded' };
+        });
 
         table.showdown();
         if (unmountedRef.current) return;
@@ -193,13 +262,23 @@ export function useGameEngine({
           const cards = tableHoleCards[seat];
           if (cards) allHoleCardsBySeat[seat] = cards.map(cardToSolverString);
         }
-        const { handNames: allHandNames } = isFoldWin
-          ? { handNames: {} as Record<number, string> }
-          : evaluatePot(showdownSeats, allHoleCardsBySeat, commStrings);
+        // Evaluate hand names whenever there are enough community cards.
+        // isFoldWin no longer suppresses this — the winner's hand name should
+        // still be shown even if they won by everyone else folding.
+        // Skip only for preflop fold-wins (< 3 community cards).
+        const { handNames: allHandNames } =
+          showdownSeats.length > 0 && commStrings.length >= 3
+            ? evaluatePot(showdownSeats, allHoleCardsBySeat, commStrings)
+            : { handNames: {} as Record<number, string> };
 
         for (let potIdx = 0; potIdx < pots.length; potIdx++) {
           const pot = pots[potIdx];
-          const eligibleSeats = eligiblePerPot[potIdx];
+          // Filter out players who folded — potEligibilityRef may retain them from
+          // earlier streets due to union accumulation across rounds. If we include
+          // a folder, they can incorrectly "win" the pot (their hole cards are still
+          // in tableHoleCards), causing the real winner to receive no credit.
+          const eligibleSeats = eligiblePerPot[potIdx]
+            .filter(i => seatsSnapshot[i]?.status !== 'folded');
           const holeCardsBySeat: Record<number, string[]> = {};
           for (const seat of eligibleSeats) {
             const cards = tableHoleCards[seat];
@@ -300,16 +379,37 @@ export function useGameEngine({
         table.endBettingRound();
         if (unmountedRef.current) return;
 
-        // Accumulate eligible players per pot. poker-ts resets pot.eligiblePlayers
-        // to only the current _players when a round has no bets, which silently
-        // removes all-in players. Unioning across rounds preserves them.
+        // Update pot eligibility per round.
+        //
+        // Problem: poker-ts resets pot.eligiblePlayers to only the current
+        // _players when a round has no bets, silently dropping all-in players
+        // who left the active set in a previous round.
+        //
+        // Wrong fix (old): union prev ∪ current — this kept all-in players but
+        // also re-added folded players from earlier streets, causing them to be
+        // evaluated as winners and have their cards revealed at showdown.
+        //
+        // Correct fix: restore only previously-eligible players who are currently
+        // ALL-IN (stack === 0 after bets are collected). A folded player still has
+        // chips (stack > 0) so they are naturally excluded from allInSeatsSet and
+        // will NOT be re-added. We also intersect with prev to avoid promoting an
+        // all-in player into a side pot they never contributed to.
+        const allInSeatsSet = new Set<number>();
+        table.seats().forEach((s, i) => {
+          if (s !== null && s.stack === 0) allInSeatsSet.add(i);
+        });
         table.pots().forEach((pot, idx) => {
           const prev = potEligibilityRef.current[idx];
           if (!prev) {
+            // First time seeing this pot: use poker-ts's list as-is.
             potEligibilityRef.current[idx] = [...pot.eligiblePlayers];
           } else {
-            const union = new Set([...prev, ...pot.eligiblePlayers]);
-            potEligibilityRef.current[idx] = Array.from(union);
+            // Restore previously-eligible all-in players dropped by poker-ts in
+            // no-bet rounds; do NOT restore folded players (they have chips > 0
+            // and are absent from allInSeatsSet).
+            const previouslyEligibleAllIns = prev.filter(i => allInSeatsSet.has(i));
+            const updated = new Set([...pot.eligiblePlayers, ...previouslyEligibleAllIns]);
+            potEligibilityRef.current[idx] = Array.from(updated);
           }
         });
 
@@ -348,11 +448,12 @@ export function useGameEngine({
       return;
     }
 
-    // Bot's turn — show the bot as active (pulsing) for botDelayMs before it acts
+    // Bot's turn — show the bot as active (pulsing) before it acts
+    const botSeat = actingSeat;
     processingRef.current = true;
     syncTableState(table, { phase: 'waiting', holeCards: [...holeCardsRef.current] });
     try {
-      await takeBotAction(table, botDelayMs);
+      await handleBotTurn(botSeat);
     } finally {
       processingRef.current = false;
     }
@@ -360,7 +461,7 @@ export function useGameEngine({
     if (!unmountedRef.current) {
       processNextStep();
     }
-  }, [sessionId, userId, syncTableState, botDelayMs]);
+  }, [sessionId, userId, syncTableState, handleBotTurn]);
 
   const startHand = useCallback(() => {
     const table = tableRef.current;
@@ -368,6 +469,13 @@ export function useGameEngine({
 
     potEligibilityRef.current = [];
     table.startHand();
+
+    // Track the blind the user posted so processNextStep can deduct it from the
+    // DB session stack. poker-ts posts blinds synchronously inside startHand()
+    // without going through performAction, which is the only other place that
+    // calls deductFromSession. seat.betSize after startHand() is the blind amount
+    // (0 when the user is not in a blind position this hand).
+    pendingBlindDeductRef.current = table.seats()[0]?.betSize ?? 0;
 
     // Read hole cards dealt by poker-ts's internal deck — this is the source of
     // truth and must match what the library uses for hand evaluation.
@@ -396,6 +504,7 @@ export function useGameEngine({
   useEffect(() => {
     unmountedRef.current = false;
     processingRef.current = false;
+    botConfigsRef.current = createBotConfigs(tier, numPlayers - 1);
     const table = new Table({ smallBlind, bigBlind }, numPlayers);
     tableRef.current = table;
 
