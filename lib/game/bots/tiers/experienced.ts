@@ -61,7 +61,9 @@ function preflopMedium(
   const canCheck = legalActions.includes('check');
   const inPos = isInPosition(position);
   const isBB = position === 'BB';
-  const facingRaise = toCall > 0;
+  const isSB = position === 'SB';
+  // A genuine raise is anything above 1 BB; SB completing (0.5 BB) is NOT a raise.
+  const facingRaise = toCall > bigBlind;
 
   if (facingRaise) {
     // Facing a raise
@@ -99,12 +101,20 @@ function preflopMedium(
       if (canCall) return { action: 'call' };
       return canCheck ? { action: 'check' } : { action: 'fold' };
     }
-    if (handTier <= threshold + 1 && (inPos || isBB)) {
-      // Call
+    if (handTier <= threshold + 1 && (inPos || isBB || isSB)) {
+      // Call or complete from SB
       if (canCall) return { action: 'call' };
       return canCheck ? { action: 'check' } : { action: 'fold' };
     }
-    // Else check/fold
+    // Speculative call with marginal hands (threshold+2) from any position at ~50%
+    if (handTier <= threshold + 2 && chance(0.50)) {
+      if (canCall) return { action: 'call' };
+      return canCheck ? { action: 'check' } : { action: 'fold' };
+    }
+    // Widen further for BTN/CO/SB: call with any tier-6 hand a reasonable fraction
+    if ((inPos || isSB) && handTier <= 6 && chance(0.45)) {
+      if (canCall) return { action: 'call' };
+    }
     return canCheck ? { action: 'check' } : { action: 'fold' };
   }
 }

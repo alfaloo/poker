@@ -143,20 +143,33 @@ function preflopHard(
   ) as HandTier;
 
   const facingRaise = snapshot.toCall > snapshot.bigBlind;
-  const facing3Bet  = snapshot.toCall > snapshot.bigBlind * 6;
+  // Detect 3-bet+ situations: toCall >= 4×BB catches any scenario where at least
+  // one re-raise has occurred. The old threshold (> 6×BB strict) was too high and
+  // used strict >, so when the raise loop locked toCall at exactly 6×BB (a known
+  // failure mode from the buggy formula below), this branch never triggered.
+  const facing3Bet  = snapshot.toCall >= snapshot.bigBlind * 4;
 
   if (facing3Bet) {
-    if (tier === 1) return mkRaise(snapshot.toCall * 3, snapshot);
-    if (tier === 2 && chance(0.25)) return mkRaise(snapshot.toCall * 2.8, snapshot);
+    // Facing a 3-bet+: tier 1 (AA/KK) shoves. This is correct GTO play and
+    // definitively ends any re-raise loop — opponent can only call or fold.
+    if (tier === 1) return mkRaise(snapshot.maxRaise, snapshot);
+    // Tier 2 (QQ/JJ/AK) calls — never re-raises, eliminating another loop source.
     if (tier <= 2) return { action: 'call' };
     return { action: 'fold' };
   }
 
   if (facingRaise) {
-    if (tier === 1) return mkRaise(snapshot.toCall * 3, snapshot);
+    // Fix: use minRaise + toCall*2 instead of toCall*3.
+    // toCall*3 was wrongly treated as the total target bet, but toCall is only the
+    // delta owed. Once prior bets accumulate, toCall*3 falls below minRaise and gets
+    // clamped there, keeping toCall constant and creating an infinite loop.
+    // minRaise + toCall*2 is always >= minRaise and represents a proper 3x raise as
+    // an increment above the current max (minRaise ≈ current_max + last_increment,
+    // so this gives roughly current_max + 3×toCall as the total — the intended sizing).
+    if (tier === 1) return mkRaise(snapshot.minRaise + snapshot.toCall * 2, snapshot);
     if (tier === 2) {
       return chance(0.55 * personality.pfrMultiplier)
-        ? mkRaise(snapshot.toCall * 3, snapshot)
+        ? mkRaise(snapshot.minRaise + snapshot.toCall * 2, snapshot)
         : { action: 'call' };
     }
     if (tier === 3 && isInPosition(snapshot.position)) return { action: 'call' };
@@ -169,9 +182,22 @@ function preflopHard(
     const size = openRaiseSize(snapshot.position, snapshot.bigBlind, snapshot.numActivePlayers);
     return mkRaise(size, snapshot);
   }
-  // BTN steal: exploit positional advantage with marginal hands
-  if (snapshot.position === 'BTN' && tier === threshold + 1 && chance(0.60)) {
+  // BTN steal: widen to cover tier+2 (catches tier 6 for most personalities)
+  if (snapshot.position === 'BTN' && tier <= threshold + 2 && chance(0.60)) {
     return mkRaise(2.2 * snapshot.bigBlind, snapshot);
+  }
+  // CO semi-steal with marginal hands
+  if (snapshot.position === 'CO' && tier <= threshold + 2 && chance(0.45)) {
+    return mkRaise(2.5 * snapshot.bigBlind, snapshot);
+  }
+  // SB complete: call with tier 5 hands always, tier 6 at 40%
+  if (snapshot.position === 'SB') {
+    if (tier <= 5 && snapshot.legalActions.includes('call')) {
+      return { action: 'call' };
+    }
+    if (chance(0.40) && snapshot.legalActions.includes('call')) {
+      return { action: 'call' };
+    }
   }
 
   return snapshot.legalActions.includes('check') ? { action: 'check' } : { action: 'fold' };

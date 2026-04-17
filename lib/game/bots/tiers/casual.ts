@@ -86,7 +86,11 @@ function preflopCasual(
     return mkRaise(3 * bigBlind, snapshot);
   }
 
-  const facingRaise = toCall > 0;
+  // A "real raise" means someone opened above 1 BB (e.g. 3x open).
+  // SB completing for 0.5 BB or anyone calling the big blind is a "limp",
+  // not a raise — treat it with looser thresholds than a genuine raise.
+  const facingRaise = toCall > bigBlind;
+  const facingLimp = toCall > 0 && toCall <= bigBlind;
 
   if (facingRaise) {
     // Facing a raise
@@ -108,8 +112,29 @@ function preflopCasual(
     }
     // < (5-V): fold
     return { action: 'fold' };
+  } else if (facingLimp) {
+    // Completing from SB or calling the BB from any other position.
+    // Treat like a cheap speculative call — much looser than a real raise.
+    if (score >= 7 - V) {
+      // Occasionally squeeze; otherwise call
+      if (canRaise && chance(0.15)) return mkRaise(3 * bigBlind, snapshot);
+      if (canCall) return { action: 'call' };
+      return canCheck ? { action: 'check' } : { action: 'fold' };
+    }
+    if (score >= 4 - V) {
+      if (canCall) return { action: 'call' };
+      return canCheck ? { action: 'check' } : { action: 'fold' };
+    }
+    if (score >= 1 - V) {
+      // Marginal hand: call 75% of the time
+      if (chance(0.75) && canCall) return { action: 'call' };
+      return canCheck ? { action: 'check' } : { action: 'fold' };
+    }
+    // Weak hand: still complete/call ~45% — it's cheap
+    if (chance(0.45) && canCall) return { action: 'call' };
+    return canCheck ? { action: 'check' } : { action: 'fold' };
   } else {
-    // No raise facing
+    // No raise facing (toCall === 0, e.g. BB acting last with no raise)
     if (score >= 10 - V) {
       // Raise 3xBB
       if (canRaise) return mkRaise(3 * bigBlind, snapshot);
